@@ -155,4 +155,37 @@ export async function fetchMovieAlbumDetails(
   }
 }
 
+export interface ArtistDetails {
+  id: string;
+  name: string;
+  role: string;
+  imageUrl: string;
+  songCount: number;
+  movieCount: number;
+  composedCount: number;
+  sungCount: number;
+  movies: MovieAlbum[];
+  composedSongs: Song[];
+  sungSongs: Song[];
+  songs: Song[];
+}
+
+/**
+ * Fetch dedicated artist / composer details and tracks from backend
+ */
+export async function fetchArtistDetails(artistSlug: string): Promise<ArtistDetails | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/artists/${encodeURIComponent(artistSlug)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.success && json.data) {
+      return json.data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+
 

@@ -4,8 +4,9 @@ import { HomeView } from './components/HomeView';
 import { SearchView } from './components/SearchView';
 import { SongDetail } from './components/SongDetail';
 import { MovieDetail } from './components/MovieDetail';
+import { ArtistDetail } from './components/ArtistDetail';
 import { LogoLoader } from './components/LogoLoader';
-import { sampleSongs, Song, MovieAlbum, Artist, slugifyMovieTitle, getMovieUrl } from './data';
+import { sampleSongs, Song, MovieAlbum, Artist, slugifyMovieTitle, getMovieUrl, slugifyArtistName, getArtistUrl } from './data';
 import { scrapedCatalog } from './scrapedData';
 import { 
   fetchSongLyrics, 
@@ -69,6 +70,7 @@ export function App() {
     // Curated high-res portraits for top Tamil music legends
     const knownImages: Record<string, string> = {
       'anirudh': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop',
+      'anirudh ravichander': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop',
       'a. r. rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
       'ar rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
       'yuvan shankar raja': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=400&auto=format&fit=crop',
@@ -76,11 +78,18 @@ export function App() {
       'sai abhyankkar': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=400&auto=format&fit=crop',
       'g. v. prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
       'g.v. prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
+      'gv prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
+      'ilaiyaraaja': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400&auto=format&fit=crop',
+      'ilayaraja': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400&auto=format&fit=crop',
+      'thalapathy vijay': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
+      's. p. balasubrahmanyam': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=400&auto=format&fit=crop',
+      'sid sriram': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=400&auto=format&fit=crop',
     };
 
     allAvailableSongs.forEach((s) => {
+      // 1. Composer
       const comp = s.composer?.trim();
-      if (comp) {
+      if (comp && comp !== 'Unknown Composer') {
         const key = comp.toLowerCase();
         const existing = artistMap.get(key);
         if (existing) {
@@ -88,7 +97,7 @@ export function App() {
         } else {
           artistMap.set(key, {
             artist: {
-              id: key.replace(/[^a-z0-9]+/g, '-'),
+              id: slugifyArtistName(comp),
               name: comp,
               role: 'Music Director',
               imageUrl: knownImages[key] || s.coverUrl,
@@ -97,11 +106,36 @@ export function App() {
           });
         }
       }
+
+      // 2. Singers
+      s.singers?.forEach((singer) => {
+        const sing = singer?.trim();
+        if (sing && sing !== 'Various Artists' && sing.length > 2) {
+          const key = sing.toLowerCase();
+          const existing = artistMap.get(key);
+          if (existing) {
+            existing.songCount += 1;
+          } else {
+            artistMap.set(key, {
+              artist: {
+                id: slugifyArtistName(sing),
+                name: sing,
+                role: 'Playback Singer',
+                imageUrl: knownImages[key] || s.coverUrl,
+              },
+              songCount: 1,
+            });
+          }
+        }
+      });
     });
 
     return Array.from(artistMap.values())
       .sort((a, b) => b.songCount - a.songCount)
-      .map((item) => item.artist);
+      .map((item) => ({
+        ...item.artist,
+        songCount: item.songCount,
+      }));
   }, [allAvailableSongs]);
 
   const [selectedSong, setSelectedSong] = useState<Song | null>(() => {
@@ -137,6 +171,20 @@ export function App() {
         year,
         posterUrl: '',
         trackCount: 0,
+      };
+    }
+    return null;
+  });
+  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(() => {
+    const path = window.location.pathname;
+    const artistMatch = path.match(/^\/artist\/([a-zA-Z0-9_-]+)/);
+    if (artistMatch) {
+      const artistSlug = artistMatch[1].toLowerCase();
+      return {
+        id: artistSlug,
+        name: artistSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        role: 'Music Director & Artist',
+        imageUrl: '',
       };
     }
     return null;
@@ -303,6 +351,17 @@ export function App() {
     }
   }, [selectedMovie, dynamicMovieAlbums]);
 
+  // Synchronize selectedArtist with dynamicArtists once loaded
+  useEffect(() => {
+    if (selectedArtist && (!selectedArtist.imageUrl || !selectedArtist.songCount)) {
+      const artistSlug = slugifyArtistName(selectedArtist.name);
+      const matched = dynamicArtists.find((a) => slugifyArtistName(a.name) === artistSlug);
+      if (matched) {
+        setSelectedArtist(matched);
+      }
+    }
+  }, [selectedArtist, dynamicArtists]);
+
   // Handle browser Back / Forward buttons (popstate)
   useEffect(() => {
     const handlePopState = () => {
@@ -314,6 +373,7 @@ export function App() {
         if (found) {
           setSelectedSong(found);
           setSelectedMovie(null);
+          setSelectedArtist(null);
           setCurrentPlayingSong(found);
           return;
         }
@@ -324,6 +384,7 @@ export function App() {
         const year = parseInt(movieMatch[1], 10);
         const albumSlug = movieMatch[2].toLowerCase();
         setSelectedSong(null);
+        setSelectedArtist(null);
         const found = dynamicMovieAlbums.find(
           (m) => slugifyMovieTitle(m.title) === albumSlug && (isNaN(year) || m.year === year)
         ) || dynamicMovieAlbums.find((m) => slugifyMovieTitle(m.title) === albumSlug);
@@ -340,9 +401,27 @@ export function App() {
         return;
       }
 
+      const artistMatch = path.match(/^\/artist\/([a-zA-Z0-9_-]+)/);
+      if (artistMatch) {
+        const artistSlug = artistMatch[1].toLowerCase();
+        setSelectedSong(null);
+        setSelectedMovie(null);
+        const found = dynamicArtists.find((a) => slugifyArtistName(a.name) === artistSlug);
+        setSelectedArtist(
+          found || {
+            id: artistSlug,
+            name: artistSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+            role: 'Music Director & Artist',
+            imageUrl: '',
+          }
+        );
+        return;
+      }
+
       if (path.startsWith('/search')) {
         setSelectedSong(null);
         setSelectedMovie(null);
+        setSelectedArtist(null);
         setActiveTab('search');
         const params = new URLSearchParams(window.location.search);
         const q = params.get('q') || '';
@@ -358,6 +437,7 @@ export function App() {
       // If returning to home or any other path
       setSelectedSong(null);
       setSelectedMovie(null);
+      setSelectedArtist(null);
       setActiveTab('home');
       setSearchQuery('');
       setBackendResults(null);
@@ -365,7 +445,7 @@ export function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [allAvailableSongs, dynamicMovieAlbums]);
+  }, [allAvailableSongs, dynamicMovieAlbums, dynamicArtists]);
 
   // Handle tab switching
   const handleTabChange = (tab: 'home' | 'movies' | 'artists' | 'search') => {
@@ -400,6 +480,8 @@ export function App() {
     // If lyrics are already present, render immediately
     if (song.lyricsTamil && song.lyricsTamil.length > 0) {
       setSelectedSong(song);
+      setSelectedMovie(null);
+      setSelectedArtist(null);
       setCurrentPlayingSong(song);
       return;
     }
@@ -407,6 +489,8 @@ export function App() {
     // Otherwise fetch on-demand with Lyrifi animated equalizer loader
     setIsLoadingSong(true);
     setSelectedSong(song);
+    setSelectedMovie(null);
+    setSelectedArtist(null);
     setCurrentPlayingSong(song);
     const fullSong = await fetchSongLyrics(song.slug || song.id);
     if (fullSong) {
@@ -418,6 +502,8 @@ export function App() {
 
   const handleGoHome = () => {
     setSelectedSong(null);
+    setSelectedMovie(null);
+    setSelectedArtist(null);
     setActiveTab('home');
     setSearchQuery('');
     setBackendResults(null);
@@ -429,10 +515,22 @@ export function App() {
 
   const handleSelectMovie = (movie: MovieAlbum) => {
     setSelectedSong(null);
+    setSelectedArtist(null);
     setSelectedMovie(movie);
     const targetPath = getMovieUrl(movie);
     if (window.location.pathname !== targetPath) {
       window.history.pushState({ type: 'movie', movie }, '', targetPath);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSelectArtist = (artist: Artist) => {
+    setSelectedSong(null);
+    setSelectedMovie(null);
+    setSelectedArtist(artist);
+    const targetPath = getArtistUrl(artist);
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ type: 'artist', artist }, '', targetPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -453,6 +551,14 @@ export function App() {
     }
   };
 
+  const handleBackFromArtist = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      handleGoHome();
+    }
+  };
+
   return (
     <div className='min-h-screen bg-[#08090c] text-white flex flex-col font-sans selection:bg-pink-500/30'>
       {/* Universal Top Navigation with Live Autocomplete Search */}
@@ -465,7 +571,7 @@ export function App() {
         artists={dynamicArtists}
         onSelectSong={handleSelectSong}
         onSelectMovie={handleSelectMovie}
-        onSelectArtist={(artist) => executeSearch(artist.name)}
+        onSelectArtist={handleSelectArtist}
         onSubmitSearch={executeSearch}
         onDeepSearch={handleDeepSearch}
         isDeepSearching={isDeepSearching}
@@ -488,6 +594,7 @@ export function App() {
             onSelectSong={handleSelectSong}
             allSongs={allAvailableSongs}
             onSelectMovie={handleSelectMovie}
+            onSelectArtist={handleSelectArtist}
           />
         ) : selectedMovie ? (
           /* DEDICATED MOVIE ALBUM PAGE VIEW */
@@ -495,6 +602,17 @@ export function App() {
             movie={selectedMovie}
             onBack={handleBackFromMovie}
             onSelectSong={handleSelectSong}
+            allSongs={allAvailableSongs}
+            onDeepSearch={handleDeepSearch}
+            isDeepSearching={isDeepSearching}
+          />
+        ) : selectedArtist ? (
+          /* DEDICATED ARTIST & COMPOSER PAGE VIEW */
+          <ArtistDetail
+            artist={selectedArtist}
+            onBack={handleBackFromArtist}
+            onSelectSong={handleSelectSong}
+            onSelectMovie={handleSelectMovie}
             allSongs={allAvailableSongs}
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
@@ -511,7 +629,7 @@ export function App() {
             isSearchingBackend={isSearchingBackend}
             onSelectSong={handleSelectSong}
             onSelectMovie={handleSelectMovie}
-            onSelectArtist={(artist) => executeSearch(artist.name)}
+            onSelectArtist={handleSelectArtist}
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
           />
@@ -523,7 +641,7 @@ export function App() {
               artists={dynamicArtists}
               onSelectSong={handleSelectSong}
               onSelectMovie={handleSelectMovie}
-              onSelectArtist={(artist) => executeSearch(artist.name)}
+              onSelectArtist={handleSelectArtist}
             />
           </div>
         )}

@@ -325,6 +325,126 @@ app.get('/api/movies/:album', (c) => {
   });
 });
 
+// GET /api/artists/:slug - Dedicated Artist / Composer details, songs, and albums
+app.get('/api/artists/:slug', (c) => {
+  const artistSlug = c.req.param('slug').toLowerCase().trim();
+
+  const toSlug = (str: string) =>
+    (str || '')
+      .toLowerCase()
+      .trim()
+      .replace(/['’\.]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+  const normSlug = toSlug(artistSlug);
+
+  // 1. Find all songs composed by this artist
+  const composedSongs = songs.filter((s) => {
+    const cSlug = toSlug(s.composer);
+    return cSlug === normSlug || cSlug.includes(normSlug) || normSlug.includes(cSlug);
+  });
+
+  // 2. Find all songs sung by this artist
+  const sungSongs = songs.filter((s) => {
+    return s.singers.some((singer) => {
+      const sSlug = toSlug(singer);
+      return sSlug === normSlug || sSlug.includes(normSlug) || normSlug.includes(sSlug);
+    });
+  });
+
+  // Combined songs (deduplicated by song id)
+  const combinedMap = new Map<string, Song>();
+  composedSongs.forEach((s) => combinedMap.set(s.id, s));
+  sungSongs.forEach((s) => combinedMap.set(s.id, s));
+  const artistSongs = Array.from(combinedMap.values());
+
+  if (artistSongs.length === 0) {
+    return c.json({ success: false, error: 'Artist not found' }, 404);
+  }
+
+  // Determine artist display name and role
+  const isPrimarilyComposer = composedSongs.length >= sungSongs.length;
+  let artistName = '';
+  if (isPrimarilyComposer && composedSongs[0]?.composer) {
+    artistName = composedSongs[0].composer;
+  } else if (sungSongs.length > 0) {
+    for (const s of sungSongs) {
+      const match = s.singers.find((singer) => {
+        const sSlug = toSlug(singer);
+        return sSlug === normSlug || sSlug.includes(normSlug) || normSlug.includes(sSlug);
+      });
+      if (match) {
+        artistName = match;
+        break;
+      }
+    }
+  }
+  if (!artistName) {
+    artistName = artistSongs[0].composer || 'Artist';
+  }
+
+  const role =
+    composedSongs.length > 0 && sungSongs.length > 0
+      ? 'Music Director & Playback Singer'
+      : composedSongs.length > 0
+      ? 'Music Director & Composer'
+      : 'Playback Singer';
+
+  // Get associated movie albums
+  const movieMap = new Map<string, { id: string; title: string; year: number; posterUrl: string; trackCount: number }>();
+  artistSongs.forEach((s) => {
+    if (s.movie && s.movie !== 'Tamil Single') {
+      const key = toSlug(s.movie);
+      if (!movieMap.has(key)) {
+        movieMap.set(key, {
+          id: key,
+          title: s.movie,
+          year: s.year || 2024,
+          posterUrl: s.coverUrl,
+          trackCount: 1,
+        });
+      } else {
+        movieMap.get(key)!.trackCount += 1;
+      }
+    }
+  });
+
+  // Curated high-res portraits for top Tamil music legends
+  const knownPortraits: Record<string, string> = {
+    'anirudh': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
+    'anirudh-ravichander': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
+    'ar-rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=600&auto=format&fit=crop',
+    'a-r-rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=600&auto=format&fit=crop',
+    'yuvan-shankar-raja': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=600&auto=format&fit=crop',
+    'harris-jayaraj': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&auto=format&fit=crop',
+    'gv-prakash-kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop',
+    'g-v-prakash-kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop',
+  };
+
+  const imageUrl = knownPortraits[normSlug] || artistSongs[0].coverUrl;
+
+  c.header('Cache-Control', 'public, max-age=1800, s-maxage=1800');
+
+  return c.json({
+    success: true,
+    data: {
+      id: normSlug,
+      name: artistName,
+      role,
+      imageUrl,
+      songCount: artistSongs.length,
+      movieCount: movieMap.size,
+      composedCount: composedSongs.length,
+      sungCount: sungSongs.length,
+      movies: Array.from(movieMap.values()),
+      composedSongs,
+      sungSongs,
+      songs: artistSongs,
+    },
+  });
+});
+
 // Helper to fetch clean, high-resolution official music artwork from Apple Music CDN
 // NEVER uses image URLs from scraped websites (avoids hotlink blocks and keeps catalog professional)
 async function fetchCleanArtwork(title: string, movie: string): Promise<string> {

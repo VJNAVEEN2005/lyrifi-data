@@ -52,7 +52,23 @@ export interface Artist {
   name: string;
   role: string;
   imageUrl: string;
+  songCount?: number;
+  movieCount?: number;
 }
+
+export const slugifyArtistName = (name: string): string => {
+  return (name || '')
+    .toLowerCase()
+    .trim()
+    .replace(/['’\.]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+export const getArtistUrl = (artist: { name: string }): string => {
+  const slug = slugifyArtistName(artist.name);
+  return `/artist/${slug}`;
+};
 
 export const sampleSongs: Song[] = [
   {

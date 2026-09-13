@@ -17,7 +17,7 @@ import {
   PlayCircle,
   ChevronRight
 } from 'lucide-react';
-import { Song, MovieAlbum, slugifyMovieTitle } from '../data';
+import { Song, MovieAlbum, Artist, slugifyMovieTitle, slugifyArtistName } from '../data';
 import { AdBanner } from './AdBanner';
 
 interface SongDetailProps {
@@ -26,6 +26,7 @@ interface SongDetailProps {
   onSelectSong: (song: Song) => void;
   allSongs: Song[];
   onSelectMovie?: (movie: MovieAlbum) => void;
+  onSelectArtist?: (artist: Artist) => void;
 }
 
 interface ParsedLyricLine {
@@ -101,6 +102,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
   onSelectSong,
   allSongs,
   onSelectMovie,
+  onSelectArtist,
 }) => {
   // Detect whether authentic Tamil characters exist in lyricsTamil
   const hasTamil = useMemo(
@@ -251,7 +253,24 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                 </div>
 
                 <p className='text-xs sm:text-sm text-gray-300 font-medium'>
-                  {song.singers[0]}
+                  {onSelectArtist ? (
+                    <button
+                      onClick={() =>
+                        onSelectArtist({
+                          id: slugifyArtistName(song.singers[0]),
+                          name: song.singers[0],
+                          role: 'Playback Singer',
+                          imageUrl: song.coverUrl,
+                        })
+                      }
+                      className='hover:text-pink-400 hover:underline transition'
+                      title={`View all songs by ${song.singers[0]}`}
+                    >
+                      {song.singers[0]}
+                    </button>
+                  ) : (
+                    <span>{song.singers[0]}</span>
+                  )}
                 </p>
 
                 <div className='text-[11px] sm:text-xs text-gray-400 font-normal flex items-center gap-1 flex-wrap'>
@@ -274,7 +293,25 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                   ) : (
                     <span>{song.movie}</span>
                   )}
-                  <span>({song.year}) • {song.composer}</span>
+                  <span>({song.year}) • </span>
+                  {onSelectArtist ? (
+                    <button
+                      onClick={() =>
+                        onSelectArtist({
+                          id: slugifyArtistName(song.composer),
+                          name: song.composer,
+                          role: 'Music Director',
+                          imageUrl: song.coverUrl,
+                        })
+                      }
+                      className='text-gray-300 hover:text-pink-400 hover:underline font-semibold transition'
+                      title={`View all songs composed by ${song.composer}`}
+                    >
+                      {song.composer}
+                    </button>
+                  ) : (
+                    <span>{song.composer}</span>
+                  )}
                 </div>
 
                 {/* Language Switcher: Dual Toggle when both exist, or Single Badge when only one exists */}
@@ -360,11 +397,50 @@ export const SongDetail: React.FC<SongDetailProps> = ({
               <div className='space-y-4 text-xs'>
                 <div className='flex items-start justify-between'>
                   <span className='text-gray-400'>Music</span>
-                  <span className='font-bold text-white text-right'>{song.composer}</span>
+                  {onSelectArtist ? (
+                    <button
+                      onClick={() =>
+                        onSelectArtist({
+                          id: slugifyArtistName(song.composer),
+                          name: song.composer,
+                          role: 'Music Director',
+                          imageUrl: song.coverUrl,
+                        })
+                      }
+                      className='font-bold text-white text-right hover:text-pink-400 hover:underline transition'
+                    >
+                      {song.composer}
+                    </button>
+                  ) : (
+                    <span className='font-bold text-white text-right'>{song.composer}</span>
+                  )}
                 </div>
                 <div className='border-t border-white/5 pt-3 flex items-start justify-between'>
                   <span className='text-gray-400'>Singers</span>
-                  <span className='font-semibold text-white text-right max-w-[160px]'>{song.singers.join(', ')}</span>
+                  <div className='font-semibold text-white text-right max-w-[180px] flex flex-wrap justify-end gap-1'>
+                    {song.singers.map((singer, i) => (
+                      <React.Fragment key={singer}>
+                        {onSelectArtist ? (
+                          <button
+                            onClick={() =>
+                              onSelectArtist({
+                                id: slugifyArtistName(singer),
+                                name: singer,
+                                role: 'Playback Singer',
+                                imageUrl: song.coverUrl,
+                              })
+                            }
+                            className='hover:text-pink-400 hover:underline transition'
+                          >
+                            {singer}
+                          </button>
+                        ) : (
+                          <span>{singer}</span>
+                        )}
+                        {i < song.singers.length - 1 && <span>,</span>}
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
                 <div className='border-t border-white/5 pt-3 flex items-start justify-between'>
                   <span className='text-gray-400'>Lyricist</span>
