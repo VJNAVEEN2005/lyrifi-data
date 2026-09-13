@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Film, Users, Music, ChevronRight, X } from 'lucide-react';
+import { Search, Film, Users, Music, ChevronRight, X, Sparkles } from 'lucide-react';
 import { Song, MovieAlbum, Artist } from '../data';
+import { DeepSearchModal } from './DeepSearchModal';
 
 interface NavbarProps {
   activeTab: 'home' | 'movies' | 'artists' | 'search';
@@ -28,9 +29,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectMovie,
   onSelectArtist,
   onSubmitSearch,
+  onDeepSearch,
+  isDeepSearching = false,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isDeepSearchModalOpen, setIsDeepSearchModalOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -151,11 +155,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setShowDropdown(false);
                 }
               }}
-              className='w-full pl-10 pr-28 py-2 bg-white/[0.06] hover:bg-white/[0.08] focus:bg-white/10 border border-white/10 focus:border-rose-500/50 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-rose-500/50 transition'
+              className='w-full pl-10 pr-44 py-2 bg-white/[0.06] hover:bg-white/[0.08] focus:bg-white/10 border border-white/10 focus:border-rose-500/50 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-rose-500/50 transition'
             />
 
-            {inputValue.trim() ? (
-              <div className='absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1'>
+            <div className='absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1'>
+              {inputValue.trim() && (
                 <button
                   onClick={() => {
                     setInputValue('');
@@ -166,19 +170,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <X className='w-3.5 h-3.5' />
                 </button>
+              )}
+
+              {/* Deep Search Button */}
+              <button
+                type='button'
+                onClick={() => setIsDeepSearchModalOpen(true)}
+                className='px-2 py-1 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-[10px] sm:text-[11px] font-bold transition flex items-center gap-1 shrink-0'
+                title='AI Deep Search & Ingest'
+              >
+                <Sparkles className='w-3 h-3 text-amber-300' />
+                <span className='hidden sm:inline'>Deep Search</span>
+              </button>
+
+              {/* Commit Search Button */}
+              {inputValue.trim() && (
                 <button
                   onClick={() => handleTriggerSearch(inputValue)}
-                  className='px-2.5 py-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-[11px] font-bold shadow-md shadow-pink-500/30 transition active:scale-95 flex items-center gap-1'
+                  className='px-2.5 py-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-[11px] font-bold shadow-md shadow-pink-500/30 transition active:scale-95 flex items-center gap-1 shrink-0'
                 >
                   <Search className='w-3 h-3' />
                   <span>Search</span>
                 </button>
-              </div>
-            ) : (
-              <div className='absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-gray-400 bg-white/5 border border-white/10 font-mono'>
-                ↵ Enter
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Autocomplete / Recommendations Dropdown */}
@@ -329,6 +344,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </div>
       </div>
+
+      {/* Navbar Deep Search Modal */}
+      {onDeepSearch && (
+        <DeepSearchModal
+          isOpen={isDeepSearchModalOpen}
+          initialQuery={inputValue}
+          onClose={() => setIsDeepSearchModalOpen(false)}
+          onSubmit={async (data) => {
+            await onDeepSearch(data);
+            setIsDeepSearchModalOpen(false);
+          }}
+          isLoading={isDeepSearching}
+        />
+      )}
     </header>
   );
 };

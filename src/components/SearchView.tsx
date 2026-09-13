@@ -206,7 +206,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   setShowDropdown(false);
                 }
               }}
-              className='w-full pl-14 pr-36 py-3.5 sm:py-4 bg-transparent text-sm sm:text-base text-white placeholder-gray-400 focus:outline-none'
+              className='w-full pl-14 pr-56 py-3.5 sm:py-4 bg-transparent text-sm sm:text-base text-white placeholder-gray-400 focus:outline-none'
             />
 
             {localInput && (
@@ -215,21 +215,33 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   setLocalInput('');
                   setShowDropdown(false);
                 }}
-                className='absolute right-32 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition'
+                className='absolute right-48 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition'
                 title='Clear search'
               >
                 <X className='w-4 h-4' />
               </button>
             )}
 
-            <button
-              onClick={() => localInput.trim() && handleCommitSearch(localInput)}
-              className='absolute right-2 px-3.5 sm:px-4 py-2 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs shadow-md shadow-pink-500/30 transition active:scale-95 flex items-center gap-1.5'
-              title='Execute search'
-            >
-              <Search className='w-3.5 h-3.5' />
-              <span>Search</span>
-            </button>
+            <div className='absolute right-2 flex items-center gap-1.5'>
+              <button
+                type='button'
+                onClick={() => setIsDeepSearchModalOpen(true)}
+                className='px-3 sm:px-3.5 py-2 rounded-full bg-gradient-to-r from-amber-500/20 to-rose-500/20 hover:from-amber-500/30 hover:to-rose-500/30 border border-amber-500/30 hover:border-amber-500/50 text-amber-300 hover:text-amber-200 font-bold text-xs shadow-sm transition active:scale-95 flex items-center gap-1.5'
+                title='AI Deep Search & Ingestion'
+              >
+                <Sparkles className='w-3.5 h-3.5 text-amber-300' />
+                <span className='hidden sm:inline'>Deep Search</span>
+              </button>
+
+              <button
+                onClick={() => localInput.trim() && handleCommitSearch(localInput)}
+                className='px-3.5 sm:px-4 py-2 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs shadow-md shadow-pink-500/30 transition active:scale-95 flex items-center gap-1.5'
+                title='Execute search'
+              >
+                <Search className='w-3.5 h-3.5' />
+                <span>Search</span>
+              </button>
+            </div>
           </div>
 
           {/* Autocomplete Recommendations Dropdown below center search bar */}
