@@ -26,6 +26,7 @@ import {
   BackendSearchResults 
 } from './services/api';
 import { Heart, Sparkles } from 'lucide-react';
+import { useAnimatedFavicon } from './hooks/useAnimatedFavicon';
 
 export function App() {
   const [extraSongs, setExtraSongs] = useState<Song[]>([]);
@@ -201,6 +202,10 @@ export function App() {
   const [isLoadingSong, setIsLoadingSong] = useState<boolean>(false);
   const [isDeepSearching, setIsDeepSearching] = useState<boolean>(false);
   const [deepSearchMessage, setDeepSearchMessage] = useState<string>('Searching verified Tamil lyrics...');
+
+  // Animate browser tab favicon with pulsing equalizer bars during any loading state
+  const isAnyLoading = isLoadingSong || isDeepSearching || isSearchingBackend;
+  useAnimatedFavicon(isAnyLoading);
 
   // Execute authentic backend search when Enter is pressed or recommendation selected
   const executeSearch = async (query: string) => {
