@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowLeft, 
   Share2, 
@@ -67,14 +67,40 @@ export const SongDetail: React.FC<SongDetailProps> = ({
   allSongs,
   onSelectMovie,
 }) => {
-  const [language, setLanguage] = useState<'tamil' | 'tanglish'>('tamil');
+  // Detect whether authentic Tamil characters exist in lyricsTamil
+  const hasTamil = useMemo(
+    () => Boolean(song.lyricsTamil?.length && song.lyricsTamil.some((l) => /[\u0B80-\u0BFF]/.test(l))),
+    [song]
+  );
+  const hasTanglish = useMemo(
+    () => Boolean(song.lyricsTanglish?.length),
+    [song]
+  );
+
+  const [language, setLanguage] = useState<'tamil' | 'tanglish'>(() => {
+    if (hasTamil) return 'tamil';
+    return 'tanglish';
+  });
+
+  useEffect(() => {
+    if (hasTamil) {
+      setLanguage('tamil');
+    } else if (hasTanglish) {
+      setLanguage('tanglish');
+    }
+  }, [hasTamil, hasTanglish, song.id]);
+
   const [activeLine, setActiveLine] = useState<number>(song.activeLineIndexDefault || 3);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [fontSize, setFontSize] = useState<number>(20);
   const [copied, setCopied] = useState<boolean>(false);
   const [isLiked, setIsLiked] = useState<boolean>(false);
 
-  const currentLyrics = language === 'tamil' ? song.lyricsTamil : song.lyricsTanglish;
+  const currentLyrics = useMemo(() => {
+    if (language === 'tamil' && hasTamil) return song.lyricsTamil;
+    if (language === 'tanglish' && hasTanglish) return song.lyricsTanglish;
+    return hasTamil ? song.lyricsTamil : (song.lyricsTanglish || []);
+  }, [language, hasTamil, hasTanglish, song]);
 
   const handleCopy = () => {
     const text = currentLyrics.join('\n');
@@ -216,29 +242,39 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                   <span>({song.year}) • {song.composer}</span>
                 </div>
 
-                {/* EXACT PILL TOGGLE FROM REFERENCE UI */}
+                {/* Language Switcher: Dual Toggle when both exist, or Single Badge when only one exists */}
                 <div className='pt-2'>
-                  <div className='inline-flex p-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner'>
-                    <button
-                      onClick={() => setLanguage('tamil')}
-                      className={'px-4 sm:px-5 py-1 sm:py-1.5 rounded-full text-xs font-bold transition duration-200 ' + (language === 'tamil' ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-pink-500/30' : 'text-gray-400 hover:text-white')}
-                    >
-                      Tamil
-                    </button>
-                    <button
-                      onClick={() => setLanguage('tanglish')}
-                      className={'px-4 sm:px-5 py-1 sm:py-1.5 rounded-full text-xs font-bold transition duration-200 ' + (language === 'tanglish' ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-pink-500/30' : 'text-gray-400 hover:text-white')}
-                    >
-                      Tanglish
-                    </button>
-                  </div>
+                  {hasTamil && hasTanglish ? (
+                    <div className='inline-flex p-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner'>
+                      <button
+                        onClick={() => setLanguage('tamil')}
+                        className={'px-4 sm:px-5 py-1 sm:py-1.5 rounded-full text-xs font-bold transition duration-200 ' + (language === 'tamil' ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-pink-500/30' : 'text-gray-400 hover:text-white')}
+                      >
+                        தமிழ்
+                      </button>
+                      <button
+                        onClick={() => setLanguage('tanglish')}
+                        className={'px-4 sm:px-5 py-1 sm:py-1.5 rounded-full text-xs font-bold transition duration-200 ' + (language === 'tanglish' ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-pink-500/30' : 'text-gray-400 hover:text-white')}
+                      >
+                        Tanglish
+                      </button>
+                    </div>
+                  ) : hasTamil ? (
+                    <span className='inline-flex items-center px-3.5 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold'>
+                      தமிழ் வரிகள் (Tamil Only)
+                    </span>
+                  ) : (
+                    <span className='inline-flex items-center px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold'>
+                      English / Tanglish Lyrics
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Song Lyrics - High-Contrast & Clearly Visible */}
             <div className='py-6 text-center mx-auto max-w-3xl space-y-4 sm:space-y-5'>
-              {currentLyrics.map((line, index) => {
+              {currentLyrics.map((line: string, index: number) => {
                 const isSectionTag = isHeadingLine(line);
                 return (
                   <React.Fragment key={index}>

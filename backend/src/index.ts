@@ -448,47 +448,71 @@ async function scrapeSongPage(
       ? imgMatch[1]
       : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop';
 
-    // Lyrics extraction
+    // Lyrics extraction - Parse dedicated Tamil and English tab panels
     let lyricsTamil: string[] = [];
     let lyricsTanglish: string[] = [];
 
-    const verseMatches =
-      pageHtml.match(/<p[^>]*class=["'][^"']*t2l-verse[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi) || [];
+    // 1. Extract Tamil Panel: data-t2l-tab-panel="tamil" or data-print-lang="tamil" or lang="ta"
+    const tamilPanelMatch =
+      pageHtml.match(/<div[^>]*data-t2l-tab-panel=["']tamil["'][^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>|<div)/i) ||
+      pageHtml.match(/<div[^>]*data-print-lang=["']tamil["'][^>]*>([\s\S]*?)<\/div>/i) ||
+      pageHtml.match(/<div[^>]*lang=["']ta["'][^>]*>([\s\S]*?)<\/div>/i);
 
-    if (verseMatches.length > 0) {
-      for (const v of verseMatches) {
-        const cleanBlock = v
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
-          .trim();
-        const lines = cleanBlock.split('\n').map((l) => l.trim()).filter(Boolean);
-        const tamilChars = (cleanBlock.match(/[\u0B80-\u0BFF]/g) || []).length;
-        if (tamilChars > 5) {
-          lyricsTamil.push(...lines);
-        } else {
-          lyricsTanglish.push(...lines);
-        }
-      }
-    } else {
-      const contentBlocks =
-        pageHtml.match(/<div[^>]*class=["'][^"']*t2l-content[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi) || [];
-      for (const block of contentBlocks) {
-        const cleanBlock = block
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
-          .trim();
-        const lines = cleanBlock.split('\n').map((l) => l.trim()).filter(Boolean);
-        const tamilChars = (cleanBlock.match(/[\u0B80-\u0BFF]/g) || []).length;
-        if (tamilChars > 15 && lyricsTamil.length === 0) {
-          lyricsTamil = lines;
-        } else if (lyricsTanglish.length === 0) {
-          lyricsTanglish = lines;
+    if (tamilPanelMatch) {
+      const tHtml = tamilPanelMatch[1];
+      const pMatches = tHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [tHtml];
+      for (const p of pMatches) {
+        const clean = p.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
+        for (const line of lines) {
+          if (/[\u0B80-\u0BFF]/.test(line) || line.includes(':')) {
+            lyricsTamil.push(line);
+          }
         }
       }
     }
 
-    if (lyricsTamil.length === 0 && lyricsTanglish.length > 0) lyricsTamil = lyricsTanglish;
-    if (lyricsTanglish.length === 0 && lyricsTamil.length > 0) lyricsTanglish = lyricsTamil;
+    // 2. Extract English / Tanglish Panel: data-t2l-tab-panel="english" or data-print-lang="english"
+    const englishPanelMatch =
+      pageHtml.match(/<div[^>]*data-t2l-tab-panel=["']english["'][^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>|<div)/i) ||
+      pageHtml.match(/<div[^>]*data-print-lang=["']english["'][^>]*>([\s\S]*?)<\/div>/i);
+
+    if (englishPanelMatch) {
+      const eHtml = englishPanelMatch[1];
+      const pMatches = eHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [eHtml];
+      const skipWords = new Set(['home', 'movies', 'music directors', 'lyricists', 'tamil2lyrics', 'copy', 'a+', 'a-']);
+      for (const p of pMatches) {
+        const clean = p.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
+        for (const line of lines) {
+          if (!skipWords.has(line.toLowerCase()) && line.length > 1 && !line.startsWith('http')) {
+            lyricsTanglish.push(line);
+          }
+        }
+      }
+    }
+
+    // 3. Fallback scan across all <p> and t2l-verse tags if either is missing
+    if (lyricsTamil.length === 0 || lyricsTanglish.length === 0) {
+      const allP = pageHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
+      for (const p of allP) {
+        const clean = p.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        if (!clean) continue;
+        const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
+        const hasTamilChar = /[\u0B80-\u0BFF]/.test(clean);
+
+        if (hasTamilChar && lyricsTamil.length === 0) {
+          lyricsTamil.push(...lines);
+        } else if (!hasTamilChar && lyricsTanglish.length === 0) {
+          if (p.includes('t2l-verse') || lines.length > 1) {
+            lyricsTanglish.push(...lines);
+          }
+        }
+      }
+    }
+
+    // Do NOT copy Tanglish into Tamil if no Tamil script exists on page!
+    // A song with only English lyrics will correctly have lyricsTamil = []
 
     return {
       id: slug.replace('-song-lyrics', ''),
