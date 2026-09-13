@@ -697,7 +697,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
       {/* Deep Search Confirmation Modal with Movie / Song Prompt & Disclaimer */}
       <DeepSearchModal
         isOpen={isDeepSearchModalOpen}
-        initialQuery={searchQuery}
+        initialQuery={localInput.trim() || searchQuery}
         onClose={() => setIsDeepSearchModalOpen(false)}
         onSubmit={async (data) => {
           await onDeepSearch(data);

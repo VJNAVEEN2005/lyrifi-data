@@ -188,7 +188,7 @@ app.get('/api/search', (c) => {
     }
   });
 
-  c.header('Cache-Control', 'public, max-age=120');
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
 
   return c.json({
     success: true,

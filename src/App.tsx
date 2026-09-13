@@ -220,6 +220,7 @@ export function App() {
     try {
       const response = await triggerDeepScrape(query.trim(), type);
       if (response && response.success) {
+        setIsDeepSearching(false);
         if (type === 'movie' && response.songs && response.songs.length > 0) {
           // Add newly scraped songs to extra songs state
           setExtraSongs((prev) => [...response.songs!, ...prev]);
@@ -239,9 +240,11 @@ export function App() {
           alert(`Could not locate ${type === 'movie' ? 'movie album' : 'song'} for "${query}". Please check the spelling.`);
         }
       } else {
+        setIsDeepSearching(false);
         alert(`Could not find ${type === 'movie' ? 'movie album' : 'song'} for "${query}". Please verify the spelling and try again.`);
       }
     } catch {
+      setIsDeepSearching(false);
       alert(`Deep Search failed for "${query}". Please try again.`);
     } finally {
       setIsDeepSearching(false);
