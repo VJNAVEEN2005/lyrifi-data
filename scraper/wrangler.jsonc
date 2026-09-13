@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lyrics-cron-worker",
+  "main": "cloudflare_worker_cron.ts",
+  "compatibility_date": "2024-09-01",
+  "triggers": {
+    "crons": ["0 */6 * * *"]
+  },
+  "vars": {
+    "SUPABASE_URL": "https://your-project.supabase.co"
+  }
+}

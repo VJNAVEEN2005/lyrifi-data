@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#08090c] text-white antialiased selection:bg-pink-500/30;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Apple Music Dynamic Glow Keyframes */
+@keyframes ambientPulse {
+  0%, 100% {
+    transform: scale(1.02) translate(0, 0);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.08) translate(-1%, 2%);
+    opacity: 0.7;
+  }
+}
+
+.ambient-glow {
+  animation: ambientPulse 14s ease-in-out infinite alternate;
+}
+
+/* Custom Scrollbar for sleek aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #08090c;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
