@@ -647,25 +647,30 @@ app.get('/api/artists/:slug', (c) => {
 
 // Helper to fetch clean, high-resolution official music artwork from Apple Music CDN
 // NEVER uses image URLs from scraped websites (avoids hotlink blocks and keeps catalog professional)
-async function fetchCleanArtwork(title: string, movie: string): Promise<string> {
+async function fetchCleanArtwork(
+  title: string,
+  movie: string,
+  composer?: string
+): Promise<string> {
   const cleanTitle = (title || '').replace(/lyrics/gi, '').trim();
-  const cleanMovie = (movie || '').trim();
+  const cleanMovie = (movie || '').replace(/tamil\s*(?:film|movie).*/gi, '').trim();
+  const cleanComp = (composer || '').trim();
 
-  const searchQueries: string[] = [];
+  // 1. Song-level searches on Apple Music (prioritize accurate track matches)
+  const songQueries: string[] = [];
   if (cleanTitle && cleanMovie && cleanMovie !== 'Tamil Single') {
-    searchQueries.push(`${cleanTitle} ${cleanMovie}`);
+    songQueries.push(`${cleanTitle} ${cleanMovie}`);
+    songQueries.push(`${cleanTitle} ${cleanMovie} Tamil`);
   }
   if (cleanTitle) {
-    searchQueries.push(cleanTitle);
-  }
-  if (cleanMovie && cleanMovie !== 'Tamil Single') {
-    searchQueries.push(cleanMovie);
+    songQueries.push(`${cleanTitle} Tamil`);
+    songQueries.push(cleanTitle);
   }
 
-  for (const q of searchQueries) {
+  for (const q of songQueries) {
     try {
       const resp = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=1`,
+        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=3`,
         {
           headers: {
             'User-Agent':
@@ -675,20 +680,86 @@ async function fetchCleanArtwork(title: string, movie: string): Promise<string> 
       );
       if (resp.ok) {
         const data: any = await resp.json();
-        if (data?.results?.length > 0 && data.results[0].artworkUrl100) {
-          return data.results[0].artworkUrl100.replace('100x100bb', '800x800bb');
+        if (data?.results?.length > 0) {
+          const track = data.results[0];
+          if (track.artworkUrl100) {
+            return track.artworkUrl100.replace('100x100bb', '800x800bb');
+          }
         }
       }
     } catch {
-      // Continue to next search candidate
+      // Continue to next candidate
     }
   }
 
-  // Fallback search by album
+  // 2. Album-level searches on Apple Music (soundtrack / movie album)
   if (cleanMovie && cleanMovie !== 'Tamil Single') {
+    const albumQueries = [
+      `${cleanMovie} Tamil Soundtrack`,
+      cleanComp ? `${cleanMovie} ${cleanComp}` : '',
+      `${cleanMovie} Tamil`,
+      `${cleanMovie} Soundtrack`,
+      cleanMovie,
+    ].filter(Boolean);
+
+    for (const q of albumQueries) {
+      try {
+        const resp = await fetch(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=5`,
+          {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            },
+          }
+        );
+        if (resp.ok) {
+          const data: any = await resp.json();
+          if (data?.results?.length > 0) {
+            // Sort by soundtrack/motion picture preference
+            const results = [...data.results].sort((a: any, b: any) => {
+              const aIsOst = /soundtrack|motion picture|original/i.test(a.collectionName || '');
+              const bIsOst = /soundtrack|motion picture|original/i.test(b.collectionName || '');
+              if (aIsOst && !bIsOst) return -1;
+              if (!aIsOst && bIsOst) return 1;
+              return 0;
+            });
+            const top = results[0];
+            if (top?.artworkUrl100) {
+              return top.artworkUrl100.replace('100x100bb', '800x800bb');
+            }
+          }
+        }
+      } catch {
+        // Continue
+      }
+    }
+  }
+
+  // Clean branded fallback SVG, never external stock photo or unrelated foreign art
+  return '/default-cover.svg';
+}
+
+// Helper to fetch official movie album soundtrack artwork from Apple Music CDN
+async function fetchMovieAlbumArtwork(
+  movie: string,
+  composer?: string
+): Promise<string> {
+  const cleanMovie = (movie || '').replace(/tamil\s*(?:film|movie).*/gi, '').trim();
+  const cleanComp = (composer || '').trim();
+  if (!cleanMovie || cleanMovie === 'Tamil Single') return '/default-cover.svg';
+
+  const queries = [
+    `${cleanMovie} Tamil Soundtrack`,
+    cleanComp ? `${cleanMovie} ${cleanComp}` : '',
+    `${cleanMovie} Tamil`,
+    `${cleanMovie} Soundtrack`,
+  ].filter(Boolean);
+
+  for (const q of queries) {
     try {
       const resp = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(cleanMovie)}&entity=album&limit=1`,
+        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=5`,
         {
           headers: {
             'User-Agent':
@@ -698,8 +769,18 @@ async function fetchCleanArtwork(title: string, movie: string): Promise<string> 
       );
       if (resp.ok) {
         const data: any = await resp.json();
-        if (data?.results?.length > 0 && data.results[0].artworkUrl100) {
-          return data.results[0].artworkUrl100.replace('100x100bb', '800x800bb');
+        if (data?.results?.length > 0) {
+          const sorted = [...data.results].sort((a: any, b: any) => {
+            const aIsOst = /soundtrack|motion picture|original/i.test(a.collectionName || '');
+            const bIsOst = /soundtrack|motion picture|original/i.test(b.collectionName || '');
+            if (aIsOst && !bIsOst) return -1;
+            if (!aIsOst && bIsOst) return 1;
+            return 0;
+          });
+          const top = sorted[0];
+          if (top?.artworkUrl100) {
+            return top.artworkUrl100.replace('100x100bb', '800x800bb');
+          }
         }
       }
     } catch {
@@ -707,30 +788,27 @@ async function fetchCleanArtwork(title: string, movie: string): Promise<string> 
     }
   }
 
-  // Fallback search Deezer API for Tamil movie / song
-  if (cleanMovie && cleanMovie !== 'Tamil Single') {
-    try {
-      const resp = await fetch(
-        `https://api.deezer.com/search/album?q=${encodeURIComponent(cleanMovie)}&limit=1`,
-        {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          },
-        }
-      );
-      if (resp.ok) {
-        const data: any = await resp.json();
-        if (data?.data?.length > 0 && data.data[0].cover_big) {
-          return data.data[0].cover_big;
-        }
+  // Fallback search Deezer with strict "Tamil" qualifier
+  try {
+    const resp = await fetch(
+      `https://api.deezer.com/search/album?q=${encodeURIComponent(`${cleanMovie} Tamil`)}&limit=3`,
+      {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
       }
-    } catch {
-      // Continue
+    );
+    if (resp.ok) {
+      const data: any = await resp.json();
+      if (data?.data?.length > 0 && data.data[0].cover_big) {
+        return data.data[0].cover_big;
+      }
     }
+  } catch {
+    // Continue
   }
 
-  // Clean branded fallback SVG, never external stock photo
   return '/default-cover.svg';
 }
 
@@ -853,7 +931,7 @@ async function scrapeSongPage(
     }
 
     // Official Apple Music CDN artwork (crisp 800x800, zero hotlink blocks, never uses scraped website images)
-    const coverUrl = await fetchCleanArtwork(title, movie);
+    const coverUrl = await fetchCleanArtwork(title, movie, composer);
 
     // Lyrics extraction - Parse dedicated Tamil and English tab panels
     let lyricsTamil: string[] = [];
@@ -1084,15 +1162,44 @@ app.post('/api/scrape-on-demand', async (c) => {
         }
       }
 
-      const detectedMovieTitle =
+      const rawDetectedMovie =
         allMovieSongs.find((s) => s.movie && s.movie !== 'Tamil Single')?.movie || query;
 
-      // Ensure every song in this album has the detected movie title
+      const detectedMovieTitle = rawDetectedMovie
+        .split(/[-–|]|(?:\s+tamil\s+(?:film|movie))/i)[0]
+        .trim() || query;
+
+      const detectedComposer =
+        allMovieSongs.find((s) => s.composer && s.composer !== 'Anirudh Ravichander')?.composer ||
+        allMovieSongs[0]?.composer;
+
+      // Ensure every song in this album has the clean detected movie title
       allMovieSongs.forEach((s) => {
-        if (!s.movie || s.movie === 'Tamil Single') {
-          s.movie = detectedMovieTitle;
-        }
+        s.movie = detectedMovieTitle;
       });
+
+      // Fetch primary official album artwork for the movie using dedicated soundtrack search
+      const albumArtwork = await fetchMovieAlbumArtwork(
+        detectedMovieTitle,
+        detectedComposer
+      );
+
+      // Prioritize authentic mzstatic artwork from the movie album search or from any authentic track
+      const bestArtwork =
+        (albumArtwork && !albumArtwork.includes('default-cover') ? albumArtwork : '') ||
+        allMovieSongs.find((s) => s.coverUrl && s.coverUrl.includes('mzstatic'))?.coverUrl ||
+        albumArtwork ||
+        '/default-cover.svg';
+
+      // Enforce uniform, official album artwork across ALL tracks in this movie album!
+      if (bestArtwork && !bestArtwork.includes('default-cover')) {
+        allMovieSongs.forEach((s) => {
+          s.coverUrl = bestArtwork;
+          s.backdropUrl = bestArtwork;
+          songMap.set(s.id, s);
+          if (s.slug) songMap.set(s.slug, s);
+        });
+      }
 
       return c.json({
         success: true,
