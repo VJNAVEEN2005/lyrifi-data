@@ -228,7 +228,11 @@ app.get('/api/trending', (c) => {
 
 // POST /api/scrape-on-demand - Real-time AI Deep Search & Ingestion
 // Helper to scrape a single song page from URL
-async function scrapeSongPage(targetUrl: string, fallbackTitle: string): Promise<Song | null> {
+async function scrapeSongPage(
+  targetUrl: string,
+  fallbackTitle?: string,
+  fallbackMovie?: string
+): Promise<Song | null> {
   try {
     const pageResp = await fetch(targetUrl, {
       headers: {
@@ -240,58 +244,152 @@ async function scrapeSongPage(targetUrl: string, fallbackTitle: string): Promise
     if (!pageResp.ok) return null;
     const pageHtml = await pageResp.text();
 
+    // 1. Extract clean song title from H1 or <title>
+    let title = '';
     const titleMatch = pageHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-    let title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '').replace(/lyrics/gi, '').trim() : fallbackTitle;
-
-    let movie = 'Tamil Single';
-    let year = 2024;
-    const movieMatch = pageHtml.match(/From\s*([^<(]+?)\s*\((\d{4})\)/i) ||
-                       pageHtml.match(/Movie\s*:\s*([^<\n]+)/i);
-    if (movieMatch) {
-      movie = movieMatch[1].replace(/<[^>]+>/g, '').trim();
-      if (movieMatch[2]) year = parseInt(movieMatch[2], 10);
+    if (titleMatch) {
+      title = titleMatch[1]
+        .replace(/<[^>]+>/g, '')
+        .replace(/song\s*lyrics/gi, '')
+        .replace(/lyrics/gi, '')
+        .trim();
+    }
+    if (!title) {
+      const titleTagMatch = pageHtml.match(/<title>([\s\S]*?)<\/title>/i);
+      if (titleTagMatch) {
+        const candidate = titleTagMatch[1].split(/[-–|]/)[0];
+        title = candidate
+          .replace(/<[^>]+>/g, '')
+          .replace(/song\s*lyrics/gi, '')
+          .replace(/lyrics/gi, '')
+          .trim();
+      }
     }
 
+    const slug =
+      targetUrl.replace(/\/+$/, '').split('/').pop() ||
+      (title ? title.toLowerCase().replace(/\s+/g, '-') : 'song');
+
+    if (!title && fallbackTitle) {
+      title = fallbackTitle;
+    }
+    if (!title) {
+      title = slug
+        .replace(/-song-lyrics/i, '')
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    // Clean smart quotes / corrupted unicode quotes
+    title = title.replace(/[\uFFFD’‘`´]/g, "'");
+
+    // 2. Extract Movie, Singers, Composer, Lyricist from meta description
+    let movie = fallbackMovie || 'Tamil Single';
+    let year = 2023;
     let composer = 'Anirudh Ravichander';
-    const compMatch = pageHtml.match(/(?:Music by|Music Director)\s*:\s*([^<\n]+)/i);
-    if (compMatch) {
-      composer = compMatch[1].replace(/<[^>]+>/g, '').trim();
-    }
-
     let singers = ['Various Artists'];
-    const singMatch = pageHtml.match(/Singers?\s*:\s*([^<\n]+)/i);
-    if (singMatch) {
-      singers = singMatch[1].replace(/<[^>]+>/g, '').split(/[,&]/).map((s) => s.trim()).filter(Boolean);
+    let lyricist = 'Tamil Lyricist';
+
+    const metaDescMatch =
+      pageHtml.match(/<meta\s+(?:name|property)=["'](?:description|og:description)["']\s+content=["']([^"']+)["']/i);
+    if (metaDescMatch) {
+      const desc = metaDescMatch[1]
+        .replace(/&quot;/g, '')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, '&');
+
+      const mMatch = desc.match(/Movie(?:\s*Name)?\s*:\s*([^,]+)/i);
+      if (mMatch) {
+        const cleanM = mMatch[1].replace(/["']/g, '').trim();
+        if (cleanM) movie = cleanM;
+      }
+
+      const compM = desc.match(/(?:Music\s*Director|Music\s*by)\s*:\s*([^,]+)/i);
+      if (compM) {
+        const cleanC = compM[1].replace(/["']/g, '').trim();
+        if (cleanC) composer = cleanC;
+      }
+
+      const singM = desc.match(/Singers?\s*:\s*([^,]+)/i);
+      if (singM) {
+        singers = singM[1]
+          .split(/,\s*|\s+(?:and|&)\s+/i)
+          .map((s) => s.trim().replace(/["']/g, ''))
+          .filter(Boolean);
+      }
+
+      const lyrM = desc.match(/Lyrics?\s*:\s*([^,]+)/i);
+      if (lyrM) {
+        const cleanL = lyrM[1].replace(/["']/g, '').trim();
+        if (cleanL) lyricist = cleanL;
+      }
     }
 
-    let lyricist = 'Tamil Lyricist';
-    const lyrMatch = pageHtml.match(/Lyrics?\s*(?:by|works)?\s*:\s*([^<\n]+)/i);
-    if (lyrMatch) {
-      lyricist = lyrMatch[1].replace(/<[^>]+>/g, '').trim();
+    // Fallback movie extraction from anchor tags: href=".../movie/..."
+    if (movie === 'Tamil Single' && !fallbackMovie) {
+      const movieAnchorMatch = pageHtml.match(
+        /href=["']https?:\/\/(?:www\.)?tamil2lyrics\.com\/movie\/[^"']+["'][^>]*>([\s\S]*?)<\/a>/i
+      );
+      if (movieAnchorMatch) {
+        const candidateMovie = movieAnchorMatch[1].replace(/<[^>]+>/g, '').trim();
+        if (candidateMovie && candidateMovie.length > 1) {
+          movie = candidateMovie;
+        }
+      }
+    }
+
+    // Fallback year extraction from page
+    const yearMatch = pageHtml.match(/\b(19\d\d|20\d\d)\b/);
+    if (yearMatch) {
+      year = parseInt(yearMatch[1], 10);
     }
 
     const imgMatch = pageHtml.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
-    const coverUrl = imgMatch ? imgMatch[1] : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop';
+    const coverUrl = imgMatch
+      ? imgMatch[1]
+      : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop';
 
-    const contentBlocks = pageHtml.match(/<div class=["']t2l-content["']>([\s\S]*?)<\/div>/gi) || [];
+    // Lyrics extraction
     let lyricsTamil: string[] = [];
     let lyricsTanglish: string[] = [];
 
-    for (const block of contentBlocks) {
-      const cleanBlock = block.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
-      const lines = cleanBlock.split('\n').map((l) => l.trim()).filter(Boolean);
-      const tamilChars = (cleanBlock.match(/[\u0B80-\u0BFF]/g) || []).length;
-      if (tamilChars > 15 && lyricsTamil.length === 0) {
-        lyricsTamil = lines;
-      } else if (lyricsTanglish.length === 0) {
-        lyricsTanglish = lines;
+    const verseMatches =
+      pageHtml.match(/<p[^>]*class=["'][^"']*t2l-verse[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi) || [];
+
+    if (verseMatches.length > 0) {
+      for (const v of verseMatches) {
+        const cleanBlock = v
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .trim();
+        const lines = cleanBlock.split('\n').map((l) => l.trim()).filter(Boolean);
+        const tamilChars = (cleanBlock.match(/[\u0B80-\u0BFF]/g) || []).length;
+        if (tamilChars > 5) {
+          lyricsTamil.push(...lines);
+        } else {
+          lyricsTanglish.push(...lines);
+        }
+      }
+    } else {
+      const contentBlocks =
+        pageHtml.match(/<div[^>]*class=["'][^"']*t2l-content[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi) || [];
+      for (const block of contentBlocks) {
+        const cleanBlock = block
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .trim();
+        const lines = cleanBlock.split('\n').map((l) => l.trim()).filter(Boolean);
+        const tamilChars = (cleanBlock.match(/[\u0B80-\u0BFF]/g) || []).length;
+        if (tamilChars > 15 && lyricsTamil.length === 0) {
+          lyricsTamil = lines;
+        } else if (lyricsTanglish.length === 0) {
+          lyricsTanglish = lines;
+        }
       }
     }
 
     if (lyricsTamil.length === 0 && lyricsTanglish.length > 0) lyricsTamil = lyricsTanglish;
     if (lyricsTanglish.length === 0 && lyricsTamil.length > 0) lyricsTanglish = lyricsTamil;
-
-    const slug = targetUrl.replace(/\/+$/, '').split('/').pop() || fallbackTitle.toLowerCase().replace(/\s+/g, '-');
 
     return {
       id: slug.replace('-song-lyrics', ''),
@@ -329,41 +427,7 @@ app.post('/api/scrape-on-demand', async (c) => {
 
     const qLower = query.toLowerCase();
 
-    // 1. Check if already in catalog
-    if (type === 'song') {
-      const existing = songs.find(
-        (s) =>
-          s.title.toLowerCase() === qLower ||
-          s.title.toLowerCase().includes(qLower) ||
-          s.slug === qLower
-      );
-      if (existing) {
-        return c.json({
-          success: true,
-          type: 'song',
-          source: 'cache',
-          song: existing,
-          songs: [existing],
-        });
-      }
-    } else {
-      // Movie check in cache
-      const existingMovieSongs = songs.filter(
-        (s) => s.movie && s.movie.toLowerCase().includes(qLower)
-      );
-      if (existingMovieSongs.length > 0) {
-        return c.json({
-          success: true,
-          type: 'movie',
-          source: 'cache',
-          movieTitle: existingMovieSongs[0].movie,
-          songs: existingMovieSongs,
-          count: existingMovieSongs.length,
-        });
-      }
-    }
-
-    // 2. Search Tamil lyrics archive online
+    // 1. Search Tamil lyrics archive online
     const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(query)}`;
     const searchResp = await fetch(searchUrl, {
       headers: {
@@ -379,15 +443,23 @@ app.post('/api/scrape-on-demand', async (c) => {
     const html = await searchResp.text();
 
     if (type === 'movie') {
-      // Find candidate movie page link (e.g. /movie/xyz-2022/ or /movies/xyz/)
-      const moviePageMatch = html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/movie\/[^"']+)["']/i);
-      
+      // Find candidate movie page links
+      const movieLinks = Array.from(
+        new Set(
+          (html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/movie\/[^"']+)["']/gi) || []).map(
+            (s) => s.replace(/href=["']|["']/gi, '')
+          )
+        )
+      );
+
+      // Prioritize movie link matching the query
+      const targetMovieUrl = movieLinks.find((l) => l.toLowerCase().includes(qLower)) || movieLinks[0];
+
       let songLinks: string[] = [];
 
-      if (moviePageMatch) {
+      if (targetMovieUrl) {
         // Fetch movie album page to get all song tracks
-        const moviePageUrl = moviePageMatch[1];
-        const mResp = await fetch(moviePageUrl, {
+        const mResp = await fetch(targetMovieUrl, {
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -404,55 +476,122 @@ app.post('/api/scrape-on-demand', async (c) => {
         }
       }
 
-      // If no dedicated movie page found, extract all matching song links from the search page
+      // If no dedicated movie page or no tracks found, extract matching song links from search page
       if (songLinks.length === 0) {
         const found = html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[^"']+)["']/gi) || [];
         songLinks = Array.from(
           new Set(
             found.map((s) => s.replace(/href=["']|["']/gi, ''))
           )
-        ).slice(0, 8);
+        );
       }
 
       if (songLinks.length === 0) {
+        // Check if songs exist in cache as fallback
+        const existingMovieSongs = songs.filter(
+          (s) => s.movie && s.movie.toLowerCase().includes(qLower)
+        );
+        if (existingMovieSongs.length > 0) {
+          return c.json({
+            success: true,
+            type: 'movie',
+            source: 'cache',
+            movieTitle: existingMovieSongs[0].movie,
+            songs: existingMovieSongs,
+            count: existingMovieSongs.length,
+          });
+        }
         return c.json({ success: false, error: `No songs or movie album found for "${query}"` }, 404);
       }
 
-      // Scrape up to 6 songs for this movie
-      const scrapedSongs: Song[] = [];
-      for (const link of songLinks.slice(0, 6)) {
-        const s = await scrapeSongPage(link, query);
-        if (s) {
-          // If song movie is default, assign the searched movie title
-          if (!s.movie || s.movie === 'Tamil Single') {
-            s.movie = query;
-          }
-          if (!songMap.has(s.id)) {
-            songs.unshift(s);
-            songMap.set(s.id, s);
-            songMap.set(s.slug, s);
-          }
-          scrapedSongs.push(s);
+      // Collect all tracks in this movie album
+      const allMovieSongs: Song[] = [];
+      const toScrape: string[] = [];
+
+      for (const link of songLinks) {
+        const slug = link.replace(/\/+$/, '').split('/').pop() || '';
+        const songId = slug.replace('-song-lyrics', '');
+        const existing = songMap.get(songId) || songMap.get(slug);
+
+        if (existing && existing.lyricsTamil && existing.lyricsTamil.length > 0) {
+          allMovieSongs.push(existing);
+        } else {
+          toScrape.push(link);
         }
       }
 
-      const detectedMovieTitle = scrapedSongs.find((s) => s.movie && s.movie !== 'Tamil Single')?.movie || query;
+      // Scrape missing tracks concurrently (batches of 4)
+      const batchSize = 4;
+      for (let i = 0; i < toScrape.length; i += batchSize) {
+        const batch = toScrape.slice(i, i + batchSize);
+        const results = await Promise.all(
+          batch.map((link) => scrapeSongPage(link, undefined, query))
+        );
+        for (const s of results) {
+          if (s) {
+            if (!s.movie || s.movie === 'Tamil Single') {
+              s.movie = query;
+            }
+            if (!songMap.has(s.id)) {
+              songs.unshift(s);
+            }
+            songMap.set(s.id, s);
+            songMap.set(s.slug, s);
+            allMovieSongs.push(s);
+          }
+        }
+      }
+
+      const detectedMovieTitle =
+        allMovieSongs.find((s) => s.movie && s.movie !== 'Tamil Single')?.movie || query;
+
+      // Ensure every song in this album has the detected movie title
+      allMovieSongs.forEach((s) => {
+        if (!s.movie || s.movie === 'Tamil Single') {
+          s.movie = detectedMovieTitle;
+        }
+      });
 
       return c.json({
         success: true,
         type: 'movie',
         source: 'deep-scrape',
         movieTitle: detectedMovieTitle,
-        songs: scrapedSongs,
-        count: scrapedSongs.length,
+        songs: allMovieSongs,
+        count: allMovieSongs.length,
       });
     } else {
       // Individual Song Deep Scrape
+      const existing = songs.find(
+        (s) =>
+          s.title.toLowerCase() === qLower ||
+          s.title.toLowerCase().includes(qLower) ||
+          s.slug === qLower
+      );
+      if (existing && existing.lyricsTamil && existing.lyricsTamil.length > 5) {
+        return c.json({
+          success: true,
+          type: 'song',
+          source: 'cache',
+          song: existing,
+          songs: [existing],
+        });
+      }
+
       const linkMatch =
         html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+-song-lyrics\/?)["']/i) ||
         html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+\/?)["']/i);
 
       if (!linkMatch) {
+        if (existing) {
+          return c.json({
+            success: true,
+            type: 'song',
+            source: 'cache',
+            song: existing,
+            songs: [existing],
+          });
+        }
         return c.json({ success: false, error: `No matching song found for "${query}"` }, 404);
       }
 
@@ -460,14 +599,23 @@ app.post('/api/scrape-on-demand', async (c) => {
       const newSong = await scrapeSongPage(targetUrl, query);
 
       if (!newSong) {
+        if (existing) {
+          return c.json({
+            success: true,
+            type: 'song',
+            source: 'cache',
+            song: existing,
+            songs: [existing],
+          });
+        }
         return c.json({ success: false, error: 'Failed to parse song lyrics' }, 502);
       }
 
       if (!songMap.has(newSong.id)) {
         songs.unshift(newSong);
-        songMap.set(newSong.id, newSong);
-        songMap.set(newSong.slug, newSong);
       }
+      songMap.set(newSong.id, newSong);
+      songMap.set(newSong.slug, newSong);
 
       return c.json({
         success: true,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Film, Music, Sparkles, AlertCircle, X, Check, Loader2 } from 'lucide-react';
+import { Film, Music, Sparkles, X, Check, Loader2 } from 'lucide-react';
 
 interface DeepSearchModalProps {
   isOpen: boolean;
@@ -18,7 +18,6 @@ export const DeepSearchModal: React.FC<DeepSearchModalProps> = ({
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [searchType, setSearchType] = useState<'movie' | 'song'>('movie');
-  const [isConfirmedAccurate, setIsConfirmedAccurate] = useState(true);
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -120,28 +119,6 @@ export const DeepSearchModal: React.FC<DeepSearchModalProps> = ({
             />
           </div>
 
-          {/* Mandatory Disclaimer Alert */}
-          <div className='p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-amber-200 text-xs leading-relaxed'>
-            <AlertCircle className='w-4 h-4 text-amber-400 shrink-0 mt-0.5' />
-            <div className='space-y-1'>
-              <div className='font-bold text-amber-300'>Important Disclaimer</div>
-              <p className='text-amber-200/90 text-[11px]'>
-                Please make sure that the name and spelling are correct. If the spelling does not match official archives, our crawler might not be able to find the lyrics or tracks.
-              </p>
-            </div>
-          </div>
-
-          {/* Accuracy Checkbox */}
-          <label className='flex items-center gap-2.5 text-xs text-gray-300 cursor-pointer select-none'>
-            <input
-              type='checkbox'
-              checked={isConfirmedAccurate}
-              onChange={(e) => setIsConfirmedAccurate(e.target.checked)}
-              className='w-4 h-4 rounded border-white/20 bg-white/10 text-rose-500 focus:ring-0 focus:ring-offset-0'
-            />
-            <span>I have verified the title and spelling</span>
-          </label>
-
           {/* Action Buttons */}
           <div className='flex items-center justify-end gap-3 pt-2'>
             <button
@@ -154,7 +131,7 @@ export const DeepSearchModal: React.FC<DeepSearchModalProps> = ({
             </button>
             <button
               type='submit'
-              disabled={isLoading || !query.trim() || !isConfirmedAccurate}
+              disabled={isLoading || !query.trim()}
               className='px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-rose-500/20 transition flex items-center gap-2'
             >
               {isLoading ? (

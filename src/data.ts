@@ -17,6 +17,7 @@ export interface Song {
   activeLineIndexDefault?: number;
   youtubeId?: string | null;
   sourceUrl?: string;
+  views?: number;
 }
 
 export interface MovieAlbum {
