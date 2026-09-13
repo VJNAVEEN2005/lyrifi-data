@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
+import { SearchView } from './components/SearchView';
 import { SongDetail } from './components/SongDetail';
 import { PlayerBar } from './components/PlayerBar';
 import { LogoLoader } from './components/LogoLoader';
@@ -113,7 +114,7 @@ export function App() {
     }
     return allAvailableSongs[0];
   });
-  const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search'>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingSong, setIsLoadingSong] = useState<boolean>(false);
   const [isDeepSearching, setIsDeepSearching] = useState<boolean>(false);
@@ -260,46 +261,42 @@ export function App() {
             onSelectSong={handleSelectSong}
             allSongs={allAvailableSongs}
           />
+        ) : activeTab === 'search' || searchQuery.trim().length > 0 ? (
+          /* DEDICATED SEARCH PAGE VIEW */
+          <SearchView
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            songs={allAvailableSongs}
+            movies={dynamicMovieAlbums}
+            artists={dynamicArtists}
+            onSelectSong={handleSelectSong}
+            onSelectMovie={(movie) => {
+              setSearchQuery(movie.title);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onSelectArtist={(artist) => {
+              setSearchQuery(artist.name);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onDeepSearch={handleDeepSearch}
+            isDeepSearching={isDeepSearching}
+          />
         ) : (
           <div>
-            {searchQuery && (
-              <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6'>
-                <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-xl mb-4'>
-                  <div>
-                    <div className='text-sm text-gray-300'>
-                      Search results for &quot;<span className='text-white font-bold'>{searchQuery}</span>&quot; ({filteredSongs.length} in catalog)
-                    </div>
-                    {filteredSongs.length === 0 && (
-                      <div className='text-xs text-rose-400 font-medium mt-0.5'>
-                        Song not in local catalog yet. Click Deep Search to scrape & ingest it instantly!
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => handleDeepSearch(searchQuery)}
-                    disabled={isDeepSearching}
-                    className='self-start sm:self-auto px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-bold text-xs shadow-lg shadow-pink-500/25 transition active:scale-95 flex items-center gap-1.5'
-                  >
-                    <Sparkles className='w-3.5 h-3.5' /> Deep Search Across Web
-                  </button>
-                </div>
-              </div>
-            )}
             <HomeView
               songs={filteredSongs}
               movies={dynamicMovieAlbums}
               artists={dynamicArtists}
               onSelectSong={handleSelectSong}
               onSelectMovie={(movie) => {
-                // Instantly filter by movie name so all its album tracks show
+                setActiveTab('search');
                 setSearchQuery(movie.title);
-                window.scrollTo({ top: 300, behavior: 'smooth' });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onSelectArtist={(artist) => {
-                // Instantly filter by composer/artist name so all their songs show
+                setActiveTab('search');
                 setSearchQuery(artist.name);
-                window.scrollTo({ top: 300, behavior: 'smooth' });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             />
           </div>

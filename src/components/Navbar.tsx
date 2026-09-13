@@ -2,8 +2,8 @@ import React from 'react';
 import { Search, Flame, Film, Users, BarChart3, Sparkles, Loader2 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'home' | 'trending' | 'movies' | 'artists' | 'charts';
-  onTabChange: (tab: 'home' | 'trending' | 'movies' | 'artists' | 'charts') => void;
+  activeTab: 'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search';
+  onTabChange: (tab: 'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search') => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onHomeClick: () => void;
@@ -76,6 +76,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={'px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ' + (activeTab === 'charts' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
           >
             <BarChart3 className='w-3.5 h-3.5' /> Charts
+          </button>
+          <button
+            onClick={() => { onTabChange('search'); onHomeClick(); }}
+            className={'px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ' + (activeTab === 'search' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
+          >
+            <Search className='w-3.5 h-3.5' /> Search
           </button>
         </nav>
 
