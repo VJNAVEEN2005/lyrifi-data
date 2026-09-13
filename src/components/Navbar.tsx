@@ -48,37 +48,37 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Center Navigation */}
         <nav className='hidden md:flex items-center gap-1 bg-white/[0.03] border border-white/5 p-1 rounded-full text-xs font-medium'>
           <button
-            onClick={() => { onTabChange('home'); onHomeClick(); }}
+            onClick={() => onTabChange('home')}
             className={'px-3.5 py-1.5 rounded-full transition ' + (activeTab === 'home' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
           >
             Home
           </button>
           <button
-            onClick={() => { onTabChange('trending'); onHomeClick(); }}
+            onClick={() => onTabChange('trending')}
             className={'px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ' + (activeTab === 'trending' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
           >
             <Flame className='w-3.5 h-3.5' /> Trending
           </button>
           <button
-            onClick={() => { onTabChange('movies'); onHomeClick(); }}
+            onClick={() => onTabChange('movies')}
             className={'px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ' + (activeTab === 'movies' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
           >
             <Film className='w-3.5 h-3.5' /> Movies
           </button>
           <button
-            onClick={() => { onTabChange('artists'); onHomeClick(); }}
+            onClick={() => onTabChange('artists')}
             className={'px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ' + (activeTab === 'artists' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
           >
             <Users className='w-3.5 h-3.5' /> Artists
           </button>
           <button
-            onClick={() => { onTabChange('charts'); onHomeClick(); }}
+            onClick={() => onTabChange('charts')}
             className={'px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ' + (activeTab === 'charts' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
           >
             <BarChart3 className='w-3.5 h-3.5' /> Charts
           </button>
           <button
-            onClick={() => { onTabChange('search'); onHomeClick(); }}
+            onClick={() => onTabChange('search')}
             className={'px-3.5 py-1.5 rounded-full transition flex items-center gap-1.5 ' + (activeTab === 'search' ? 'bg-white text-black font-bold shadow-sm' : 'text-gray-400 hover:text-white')}
           >
             <Search className='w-3.5 h-3.5' /> Search

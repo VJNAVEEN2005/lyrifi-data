@@ -113,8 +113,21 @@ export function App() {
     }
     return allAvailableSongs[0];
   });
-  const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search'>('home');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search'>(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/search')) {
+      return 'search';
+    }
+    return 'home';
+  });
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/search')) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('q') || '';
+    }
+    return '';
+  });
   const [isLoadingSong, setIsLoadingSong] = useState<boolean>(false);
   const [isDeepSearching, setIsDeepSearching] = useState<boolean>(false);
   const [deepSearchMessage, setDeepSearchMessage] = useState<string>('Searching verified Tamil lyrics...');
@@ -168,9 +181,17 @@ export function App() {
           setCurrentPlayingSong(found);
           return;
         }
+      } else if (path.startsWith('/search')) {
+        setSelectedSong(null);
+        setActiveTab('search');
+        const params = new URLSearchParams(window.location.search);
+        setSearchQuery(params.get('q') || '');
+        return;
       }
-      // If returning to home
+      // If returning to home or any other path
       setSelectedSong(null);
+      setActiveTab('home');
+      setSearchQuery('');
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -190,6 +211,71 @@ export function App() {
         s.lyricist.toLowerCase().includes(q)
     );
   }, [searchQuery, allAvailableSongs]);
+
+  // Handle tab switching
+  const handleTabChange = (tab: 'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search') => {
+    setActiveTab(tab);
+    if (tab === 'search') {
+      setSelectedSong(null);
+      const targetUrl = searchQuery.trim() ? `/search?q=${encodeURIComponent(searchQuery.trim())}` : '/search';
+      if (window.location.pathname !== '/search' || window.location.search !== (searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '')) {
+        window.history.pushState({ tab: 'search', q: searchQuery }, '', targetUrl);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (tab === 'home') {
+      handleGoHome();
+    } else {
+      // trending, movies, artists, charts
+      setSelectedSong(null);
+      if (window.location.pathname !== '/') {
+        window.history.pushState({}, '', '/');
+      }
+      setTimeout(() => {
+        const section = document.getElementById(tab);
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 50);
+    }
+  };
+
+  // Sync search input with browser URL (/search?q=...)
+  const handleSearchChange = (newQuery: string) => {
+    setSearchQuery(newQuery);
+    if (selectedSong) {
+      setSelectedSong(null);
+    }
+    setActiveTab('search');
+
+    const trimmed = newQuery.trim();
+    const targetUrl = trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search';
+
+    if (window.location.pathname.startsWith('/search')) {
+      window.history.replaceState({ tab: 'search', q: newQuery }, '', targetUrl);
+    } else {
+      window.history.pushState({ tab: 'search', q: newQuery }, '', targetUrl);
+    }
+  };
+
+  // Navigate to search for a specific movie
+  const handleSelectMovie = (movie: MovieAlbum) => {
+    setSelectedSong(null);
+    setActiveTab('search');
+    setSearchQuery(movie.title);
+    const targetUrl = `/search?q=${encodeURIComponent(movie.title)}`;
+    window.history.pushState({ tab: 'search', q: movie.title }, '', targetUrl);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Navigate to search for a specific artist
+  const handleSelectArtist = (artist: Artist) => {
+    setSelectedSong(null);
+    setActiveTab('search');
+    setSearchQuery(artist.name);
+    const targetUrl = `/search?q=${encodeURIComponent(artist.name)}`;
+    window.history.pushState({ tab: 'search', q: artist.name }, '', targetUrl);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleSelectSong = async (song: Song) => {
     // Record live analytics view in backend
@@ -223,21 +309,30 @@ export function App() {
 
   const handleGoHome = () => {
     setSelectedSong(null);
-    if (window.location.pathname !== '/') {
+    setActiveTab('home');
+    setSearchQuery('');
+    if (window.location.pathname !== '/' || window.location.search) {
       window.history.pushState({}, '', '/');
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleBackFromSong = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      handleGoHome();
+    }
+  };
+
   return (
     <div className='min-h-screen bg-[#08090c] text-white flex flex-col font-sans selection:bg-pink-500/30'>
-      {/* Universal Top Navigation */}
       {/* Universal Top Navigation with AI Deep Search */}
       <Navbar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={handleSearchChange}
         onHomeClick={handleGoHome}
         onDeepSearch={handleDeepSearch}
         isDeepSearching={isDeepSearching}
@@ -256,7 +351,7 @@ export function App() {
         ) : selectedSong ? (
           <SongDetail
             song={selectedSong}
-            onBack={handleGoHome}
+            onBack={handleBackFromSong}
             onSelectSong={handleSelectSong}
             allSongs={allAvailableSongs}
           />
@@ -264,19 +359,13 @@ export function App() {
           /* DEDICATED SEARCH PAGE VIEW */
           <SearchView
             searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
+            onSearchChange={handleSearchChange}
             songs={allAvailableSongs}
             movies={dynamicMovieAlbums}
             artists={dynamicArtists}
             onSelectSong={handleSelectSong}
-            onSelectMovie={(movie) => {
-              setSearchQuery(movie.title);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onSelectArtist={(artist) => {
-              setSearchQuery(artist.name);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onSelectMovie={handleSelectMovie}
+            onSelectArtist={handleSelectArtist}
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
           />
@@ -287,16 +376,8 @@ export function App() {
               movies={dynamicMovieAlbums}
               artists={dynamicArtists}
               onSelectSong={handleSelectSong}
-              onSelectMovie={(movie) => {
-                setActiveTab('search');
-                setSearchQuery(movie.title);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onSelectArtist={(artist) => {
-                setActiveTab('search');
-                setSearchQuery(artist.name);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              onSelectMovie={handleSelectMovie}
+              onSelectArtist={handleSelectArtist}
             />
           </div>
         )}
