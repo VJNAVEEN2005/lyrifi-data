@@ -1,30 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Search, 
   Sparkles, 
-  Disc, 
   Film, 
   Users, 
   Music, 
-  Clock, 
   TrendingUp, 
-  Play, 
   ChevronRight,
-  Filter,
-  Flame,
-  CheckCircle2,
   SlidersHorizontal,
   X
 } from 'lucide-react';
 import { Song, MovieAlbum, Artist } from '../data';
+import { BackendSearchResults } from '../services/api';
 import { AdBanner } from './AdBanner';
 
 interface SearchViewProps {
   searchQuery: string;
-  onSearchChange: (q: string) => void;
+  onSearchSubmit: (q: string) => void;
   songs: Song[];
   movies: MovieAlbum[];
   artists: Artist[];
+  backendResults?: BackendSearchResults | null;
+  isSearchingBackend?: boolean;
   onSelectSong: (song: Song) => void;
   onSelectMovie: (movie: MovieAlbum) => void;
   onSelectArtist: (artist: Artist) => void;
@@ -36,10 +33,12 @@ type FilterCategory = 'all' | 'songs' | 'movies' | 'artists';
 
 export const SearchView: React.FC<SearchViewProps> = ({
   searchQuery,
-  onSearchChange,
+  onSearchSubmit,
   songs,
   movies,
   artists,
+  backendResults,
+  isSearchingBackend = false,
   onSelectSong,
   onSelectMovie,
   onSelectArtist,
@@ -48,11 +47,60 @@ export const SearchView: React.FC<SearchViewProps> = ({
 }) => {
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [localInput, setLocalInput] = useState<string>(searchQuery);
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Sync local input if external searchQuery changes (e.g. via URL or back button)
+  useEffect(() => {
+    setLocalInput(searchQuery);
+  }, [searchQuery]);
+
+  // Close recommendations dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Compute live recommendations for autocomplete while typing
+  const trimmed = localInput.trim().toLowerCase();
+  const recommendations = useMemo(() => {
+    if (!trimmed) return { songs: [], movies: [], artists: [] };
+
+    const matchedS = songs
+      .filter(
+        (s) =>
+          s.title.toLowerCase().includes(trimmed) ||
+          s.movie.toLowerCase().includes(trimmed) ||
+          s.composer.toLowerCase().includes(trimmed) ||
+          s.singers.some((singer) => singer.toLowerCase().includes(trimmed))
+      )
+      .slice(0, 4);
+
+    const matchedM = movies
+      .filter((m) => m.title.toLowerCase().includes(trimmed))
+      .slice(0, 3);
+
+    const matchedA = artists
+      .filter((a) => a.name.toLowerCase().includes(trimmed))
+      .slice(0, 2);
+
+    return { songs: matchedS, movies: matchedM, artists: matchedA };
+  }, [trimmed, songs, movies, artists]);
+
+  const hasRecommendations =
+    recommendations.songs.length > 0 ||
+    recommendations.movies.length > 0 ||
+    recommendations.artists.length > 0;
+
+  // Local fallback results if backendResults is not yet populated
   const q = searchQuery.toLowerCase().trim();
-
-  // 1. Matched Songs
-  const matchedSongs = useMemo(() => {
+  const localMatchedSongs = useMemo(() => {
     if (!q) return [];
     return songs.filter((s) => {
       const matchText =
@@ -67,8 +115,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
     });
   }, [q, songs, selectedYear]);
 
-  // 2. Matched Movies
-  const matchedMovies = useMemo(() => {
+  const localMatchedMovies = useMemo(() => {
     if (!q) return [];
     return movies.filter((m) => {
       const matchText = m.title.toLowerCase().includes(q);
@@ -77,11 +124,29 @@ export const SearchView: React.FC<SearchViewProps> = ({
     });
   }, [q, movies, selectedYear]);
 
-  // 3. Matched Artists & Composers
-  const matchedArtists = useMemo(() => {
+  const localMatchedArtists = useMemo(() => {
     if (!q) return [];
     return artists.filter((a) => a.name.toLowerCase().includes(q));
   }, [q, artists]);
+
+  // Actual display results: prefer verified backend results
+  const matchedSongs = useMemo(() => {
+    if (backendResults) {
+      if (selectedYear === 'all') return backendResults.songs;
+      return backendResults.songs.filter((s) => String(s.year) === selectedYear);
+    }
+    return localMatchedSongs;
+  }, [backendResults, localMatchedSongs, selectedYear]);
+
+  const matchedMovies = useMemo(() => {
+    if (backendResults) {
+      if (selectedYear === 'all') return backendResults.movies;
+      return backendResults.movies.filter((m) => String(m.year) === selectedYear);
+    }
+    return localMatchedMovies;
+  }, [backendResults, localMatchedMovies, selectedYear]);
+
+  const matchedArtists = backendResults ? backendResults.artists : localMatchedArtists;
 
   // Available Years Filter Pills
   const availableYears = useMemo(() => {
@@ -104,33 +169,50 @@ export const SearchView: React.FC<SearchViewProps> = ({
     'Yuvan Shankar Raja'
   ];
 
+  const handleCommitSearch = (query: string) => {
+    const finalQ = query.trim();
+    if (!finalQ) return;
+    setShowDropdown(false);
+    onSearchSubmit(finalQ);
+  };
+
   return (
     <div className='min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-fadeIn'>
       
-      {/* 1. CLEAN CENTERED SEARCH BAR */}
+      {/* 1. CLEAN CENTERED SEARCH BAR WITH AUTOCOMPLETE RECOMMENDATIONS */}
       <div className='max-w-3xl mx-auto pt-4 sm:pt-8 pb-2 space-y-4 text-center'>
         
-        {/* Sleek Centered Search Bar */}
-        <div className='relative max-w-2xl mx-auto'>
+        <div ref={containerRef} className='relative max-w-2xl mx-auto'>
           <div className='relative flex items-center rounded-full bg-white/[0.07] hover:bg-white/[0.1] focus-within:bg-white/[0.12] border border-white/15 focus-within:border-rose-500/70 shadow-2xl backdrop-blur-xl transition-all duration-200'>
             <Search className='absolute left-5 w-5 h-5 text-gray-400 pointer-events-none' />
             <input
               type='text'
               autoFocus
               placeholder='Search Tamil songs, movies, artists...'
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              value={localInput}
+              onChange={(e) => {
+                setLocalInput(e.target.value);
+                setShowDropdown(true);
+              }}
+              onFocus={() => {
+                if (localInput.trim()) setShowDropdown(true);
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchQuery.trim()) {
-                  onDeepSearch(searchQuery.trim());
+                if (e.key === 'Enter' && localInput.trim()) {
+                  handleCommitSearch(localInput);
+                } else if (e.key === 'Escape') {
+                  setShowDropdown(false);
                 }
               }}
               className='w-full pl-14 pr-36 py-3.5 sm:py-4 bg-transparent text-sm sm:text-base text-white placeholder-gray-400 focus:outline-none'
             />
 
-            {searchQuery && (
+            {localInput && (
               <button
-                onClick={() => onSearchChange('')}
+                onClick={() => {
+                  setLocalInput('');
+                  setShowDropdown(false);
+                }}
                 className='absolute right-32 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition'
                 title='Clear search'
               >
@@ -139,15 +221,150 @@ export const SearchView: React.FC<SearchViewProps> = ({
             )}
 
             <button
-              onClick={() => searchQuery.trim() && onDeepSearch(searchQuery.trim())}
-              disabled={!searchQuery.trim() || isDeepSearching}
-              className='absolute right-2 px-3.5 sm:px-4 py-2 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs shadow-md shadow-pink-500/30 transition active:scale-95 disabled:opacity-40 flex items-center gap-1.5'
-              title='Deep scrape and add to database'
+              onClick={() => localInput.trim() && handleCommitSearch(localInput)}
+              className='absolute right-2 px-3.5 sm:px-4 py-2 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs shadow-md shadow-pink-500/30 transition active:scale-95 flex items-center gap-1.5'
+              title='Execute search'
             >
-              <Sparkles className='w-3.5 h-3.5 text-pink-200' />
-              <span>{isDeepSearching ? 'Scraping...' : 'Deep Search'}</span>
+              <Search className='w-3.5 h-3.5' />
+              <span>Search</span>
             </button>
           </div>
+
+          {/* Autocomplete Recommendations Dropdown below center search bar */}
+          {showDropdown && trimmed && (
+            <div className='absolute left-0 right-0 top-full mt-2 bg-[#10121a]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl p-2 z-50 space-y-1 text-left max-h-[70vh] overflow-y-auto'>
+              {hasRecommendations ? (
+                <>
+                  {/* Songs */}
+                  {recommendations.songs.length > 0 && (
+                    <div className='space-y-0.5'>
+                      <div className='px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1'>
+                        <Music className='w-3 h-3 text-rose-400' /> Songs
+                      </div>
+                      {recommendations.songs.map((song) => (
+                        <div
+                          key={song.id}
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setLocalInput(song.title);
+                            onSelectSong(song);
+                          }}
+                          className='flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition group'
+                        >
+                          <img
+                            src={song.coverUrl}
+                            alt={song.title}
+                            className='w-9 h-9 rounded-lg object-cover shrink-0 shadow-sm border border-white/10'
+                          />
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-sm font-bold text-white group-hover:text-rose-400 transition truncate'>
+                              {song.title}
+                            </div>
+                            <div className='text-xs text-gray-400 truncate'>
+                              {song.movie} • {song.composer}
+                            </div>
+                          </div>
+                          <span className='text-[10px] text-gray-500 font-medium px-2 py-0.5 rounded bg-white/5'>
+                            Lyrics
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Movies */}
+                  {recommendations.movies.length > 0 && (
+                    <div className='space-y-0.5 pt-1 border-t border-white/5'>
+                      <div className='px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1'>
+                        <Film className='w-3 h-3 text-rose-400' /> Movies
+                      </div>
+                      {recommendations.movies.map((movie) => (
+                        <div
+                          key={movie.id}
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setLocalInput(movie.title);
+                            handleCommitSearch(movie.title);
+                          }}
+                          className='flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition group'
+                        >
+                          <div className='w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-rose-400'>
+                            <Film className='w-4 h-4' />
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-sm font-bold text-white group-hover:text-rose-400 transition truncate'>
+                              {movie.title}
+                            </div>
+                            <div className='text-xs text-gray-400 truncate'>
+                              Movie Album • {movie.trackCount} Tracks ({movie.year})
+                            </div>
+                          </div>
+                          <ChevronRight className='w-4 h-4 text-gray-500 shrink-0' />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Artists */}
+                  {recommendations.artists.length > 0 && (
+                    <div className='space-y-0.5 pt-1 border-t border-white/5'>
+                      <div className='px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1'>
+                        <Users className='w-3 h-3 text-rose-400' /> Artists & Composers
+                      </div>
+                      {recommendations.artists.map((artist) => (
+                        <div
+                          key={artist.id}
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setLocalInput(artist.name);
+                            handleCommitSearch(artist.name);
+                          }}
+                          className='flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition group'
+                        >
+                          <img
+                            src={artist.imageUrl}
+                            alt={artist.name}
+                            className='w-9 h-9 rounded-full object-cover shrink-0 border border-white/15'
+                          />
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-sm font-bold text-white group-hover:text-rose-400 transition truncate'>
+                              {artist.name}
+                            </div>
+                            <div className='text-xs text-gray-400 truncate'>
+                              {artist.role}
+                            </div>
+                          </div>
+                          <ChevronRight className='w-4 h-4 text-gray-500 shrink-0' />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Press Enter footer */}
+                  <div
+                    onClick={() => handleCommitSearch(localInput)}
+                    className='border-t border-white/10 mt-1 pt-2 px-3 py-1.5 flex items-center justify-between text-xs text-rose-400 hover:text-rose-300 font-semibold cursor-pointer rounded-xl hover:bg-white/5 transition'
+                  >
+                    <span className='flex items-center gap-2 truncate'>
+                      <Search className='w-3.5 h-3.5 shrink-0' /> Search backend for &quot;{localInput}&quot;
+                    </span>
+                    <span className='px-2 py-0.5 rounded bg-white/10 text-gray-300 font-mono text-[10px] shrink-0'>
+                      ↵ Enter
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div
+                  onClick={() => handleCommitSearch(localInput)}
+                  className='p-3 text-center space-y-1 cursor-pointer hover:bg-white/5 rounded-xl transition'
+                >
+                  <div className='text-xs text-gray-400'>
+                    Press Enter to search backend database
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Centered Quick Trending Suggestions */}
@@ -158,7 +375,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
           {quickSearches.map((term) => (
             <button
               key={term}
-              onClick={() => onSearchChange(term)}
+              onClick={() => {
+                setLocalInput(term);
+                handleCommitSearch(term);
+              }}
               className='px-3 py-1 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/10 text-xs text-gray-300 hover:text-white transition'
             >
               {term}
@@ -168,7 +388,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
       </div>
 
       {/* 2. FILTER TABS & YEAR FILTER */}
-      {searchQuery.trim() && (
+      {!isSearchingBackend && searchQuery.trim() && (
         <div className='flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4'>
           {/* Category Filter Pills */}
           <div className='flex items-center gap-2'>
@@ -222,8 +442,23 @@ export const SearchView: React.FC<SearchViewProps> = ({
         </div>
       )}
 
-      {/* 3. SEARCH RESULTS DISPLAY */}
-      {searchQuery.trim() ? (
+      {/* 3. SEARCH RESULTS DISPLAY OR BACKEND LOADER */}
+      {isSearchingBackend ? (
+        <div className='py-20 flex flex-col items-center justify-center space-y-4 text-center'>
+          <div className='flex items-end gap-1.5 h-10'>
+            <span className='w-2 h-6 bg-pink-500 rounded-full animate-bounce'></span>
+            <span className='w-2 h-10 bg-rose-500 rounded-full animate-bounce [animation-delay:0.15s]'></span>
+            <span className='w-2 h-8 bg-pink-400 rounded-full animate-bounce [animation-delay:0.3s]'></span>
+            <span className='w-2 h-5 bg-rose-400 rounded-full animate-bounce [animation-delay:0.45s]'></span>
+          </div>
+          <div className='text-lg text-white font-black'>
+            Fetching results for &quot;<span className='text-rose-400'>{searchQuery}</span>&quot; from backend...
+          </div>
+          <p className='text-xs text-gray-400 max-w-sm'>
+            Searching database catalog and verified Tamil lyrics on Cloudflare Worker
+          </p>
+        </div>
+      ) : searchQuery.trim() ? (
         <div className='space-y-10'>
           
           {/* ZERO RESULTS / DEEP SEARCH BANNER */}

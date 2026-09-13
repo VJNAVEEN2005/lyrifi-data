@@ -6,7 +6,13 @@ import { SongDetail } from './components/SongDetail';
 import { LogoLoader } from './components/LogoLoader';
 import { sampleSongs, Song, MovieAlbum, Artist } from './data';
 import { scrapedCatalog } from './scrapedData';
-import { fetchSongLyrics, recordSongView, triggerDeepScrape } from './services/api';
+import { 
+  fetchSongLyrics, 
+  recordSongView, 
+  triggerDeepScrape, 
+  searchCatalogFromBackend, 
+  BackendSearchResults 
+} from './services/api';
 import { Heart, Sparkles } from 'lucide-react';
 
 export function App() {
@@ -113,7 +119,7 @@ export function App() {
     }
     return allAvailableSongs[0];
   });
-  const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search'>(() => {
+  const [activeTab, setActiveTab] = useState<'home' | 'movies' | 'artists' | 'search'>(() => {
     const path = window.location.pathname;
     if (path.startsWith('/search')) {
       return 'search';
@@ -128,9 +134,72 @@ export function App() {
     }
     return '';
   });
+  const [backendResults, setBackendResults] = useState<BackendSearchResults | null>(null);
+  const [isSearchingBackend, setIsSearchingBackend] = useState<boolean>(false);
   const [isLoadingSong, setIsLoadingSong] = useState<boolean>(false);
   const [isDeepSearching, setIsDeepSearching] = useState<boolean>(false);
   const [deepSearchMessage, setDeepSearchMessage] = useState<string>('Searching verified Tamil lyrics...');
+
+  // Execute authentic backend search when Enter is pressed or recommendation selected
+  const executeSearch = async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSearchQuery('');
+      setBackendResults(null);
+      if (window.location.pathname !== '/search') {
+        window.history.pushState(null, '', '/search');
+      }
+      return;
+    }
+
+    setSearchQuery(trimmed);
+    setSelectedSong(null);
+    setActiveTab('search');
+
+    const targetUrl = `/search?q=${encodeURIComponent(trimmed)}`;
+    if (window.location.pathname + window.location.search !== targetUrl) {
+      window.history.pushState({ tab: 'search', q: trimmed }, '', targetUrl);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Request from backend database
+    setIsSearchingBackend(true);
+    try {
+      const results = await searchCatalogFromBackend(trimmed);
+      if (results) {
+        setBackendResults(results);
+      } else {
+        // Fallback to local catalog if backend is offline
+        const qLower = trimmed.toLowerCase();
+        const localSongs = allAvailableSongs.filter(
+          (s) =>
+            s.title.toLowerCase().includes(qLower) ||
+            s.movie.toLowerCase().includes(qLower) ||
+            s.composer.toLowerCase().includes(qLower) ||
+            s.singers.some((singer) => singer.toLowerCase().includes(qLower))
+        );
+        const localMovies = dynamicMovieAlbums.filter((m) => m.title.toLowerCase().includes(qLower));
+        const localArtists = dynamicArtists.filter((a) => a.name.toLowerCase().includes(qLower));
+        setBackendResults({ songs: localSongs, movies: localMovies, artists: localArtists });
+      }
+    } catch {
+      // fallback
+    } finally {
+      setIsSearchingBackend(false);
+    }
+  };
+
+  // If initial load or refresh on /search?q=..., trigger backend search
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/search')) {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('q');
+      if (q) {
+        executeSearch(q);
+      }
+    }
+  }, []);
 
   // Handle on-demand deep search
   const handleDeepSearch = async (query: string) => {
@@ -185,47 +254,32 @@ export function App() {
         setSelectedSong(null);
         setActiveTab('search');
         const params = new URLSearchParams(window.location.search);
-        setSearchQuery(params.get('q') || '');
+        const q = params.get('q') || '';
+        if (q) {
+          executeSearch(q);
+        } else {
+          setSearchQuery('');
+          setBackendResults(null);
+        }
         return;
       }
       // If returning to home or any other path
       setSelectedSong(null);
       setActiveTab('home');
       setSearchQuery('');
+      setBackendResults(null);
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [allAvailableSongs]);
 
-  // Filter songs based on live search query
-  const filteredSongs = useMemo(() => {
-    if (!searchQuery.trim()) return allAvailableSongs;
-    const q = searchQuery.toLowerCase();
-    return allAvailableSongs.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.movie.toLowerCase().includes(q) ||
-        s.composer.toLowerCase().includes(q) ||
-        s.singers.some((singer) => singer.toLowerCase().includes(q)) ||
-        s.lyricist.toLowerCase().includes(q)
-    );
-  }, [searchQuery, allAvailableSongs]);
-
   // Handle tab switching
-  const handleTabChange = (tab: 'home' | 'trending' | 'movies' | 'artists' | 'charts' | 'search') => {
+  const handleTabChange = (tab: 'home' | 'movies' | 'artists' | 'search') => {
     setActiveTab(tab);
-    if (tab === 'search') {
-      setSelectedSong(null);
-      const targetUrl = searchQuery.trim() ? `/search?q=${encodeURIComponent(searchQuery.trim())}` : '/search';
-      if (window.location.pathname !== '/search' || window.location.search !== (searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '')) {
-        window.history.pushState({ tab: 'search', q: searchQuery }, '', targetUrl);
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (tab === 'home') {
+    if (tab === 'home') {
       handleGoHome();
-    } else {
-      // trending, movies, artists, charts
+    } else if (tab === 'movies' || tab === 'artists') {
       setSelectedSong(null);
       if (window.location.pathname !== '/') {
         window.history.pushState({}, '', '/');
@@ -237,44 +291,6 @@ export function App() {
         }
       }, 50);
     }
-  };
-
-  // Sync search input with browser URL (/search?q=...)
-  const handleSearchChange = (newQuery: string) => {
-    setSearchQuery(newQuery);
-    if (selectedSong) {
-      setSelectedSong(null);
-    }
-    setActiveTab('search');
-
-    const trimmed = newQuery.trim();
-    const targetUrl = trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search';
-
-    if (window.location.pathname.startsWith('/search')) {
-      window.history.replaceState({ tab: 'search', q: newQuery }, '', targetUrl);
-    } else {
-      window.history.pushState({ tab: 'search', q: newQuery }, '', targetUrl);
-    }
-  };
-
-  // Navigate to search for a specific movie
-  const handleSelectMovie = (movie: MovieAlbum) => {
-    setSelectedSong(null);
-    setActiveTab('search');
-    setSearchQuery(movie.title);
-    const targetUrl = `/search?q=${encodeURIComponent(movie.title)}`;
-    window.history.pushState({ tab: 'search', q: movie.title }, '', targetUrl);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Navigate to search for a specific artist
-  const handleSelectArtist = (artist: Artist) => {
-    setSelectedSong(null);
-    setActiveTab('search');
-    setSearchQuery(artist.name);
-    const targetUrl = `/search?q=${encodeURIComponent(artist.name)}`;
-    window.history.pushState({ tab: 'search', q: artist.name }, '', targetUrl);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectSong = async (song: Song) => {
@@ -311,6 +327,7 @@ export function App() {
     setSelectedSong(null);
     setActiveTab('home');
     setSearchQuery('');
+    setBackendResults(null);
     if (window.location.pathname !== '/' || window.location.search) {
       window.history.pushState({}, '', '/');
     }
@@ -327,13 +344,18 @@ export function App() {
 
   return (
     <div className='min-h-screen bg-[#08090c] text-white flex flex-col font-sans selection:bg-pink-500/30'>
-      {/* Universal Top Navigation with AI Deep Search */}
+      {/* Universal Top Navigation with Live Autocomplete Search */}
       <Navbar
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
         onHomeClick={handleGoHome}
+        songs={allAvailableSongs}
+        movies={dynamicMovieAlbums}
+        artists={dynamicArtists}
+        onSelectSong={handleSelectSong}
+        onSelectMovie={(movie) => executeSearch(movie.title)}
+        onSelectArtist={(artist) => executeSearch(artist.name)}
+        onSubmitSearch={executeSearch}
         onDeepSearch={handleDeepSearch}
         isDeepSearching={isDeepSearching}
       />
@@ -359,25 +381,27 @@ export function App() {
           /* DEDICATED SEARCH PAGE VIEW */
           <SearchView
             searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
+            onSearchSubmit={executeSearch}
             songs={allAvailableSongs}
             movies={dynamicMovieAlbums}
             artists={dynamicArtists}
+            backendResults={backendResults}
+            isSearchingBackend={isSearchingBackend}
             onSelectSong={handleSelectSong}
-            onSelectMovie={handleSelectMovie}
-            onSelectArtist={handleSelectArtist}
+            onSelectMovie={(movie) => executeSearch(movie.title)}
+            onSelectArtist={(artist) => executeSearch(artist.name)}
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
           />
         ) : (
           <div>
             <HomeView
-              songs={filteredSongs}
+              songs={allAvailableSongs}
               movies={dynamicMovieAlbums}
               artists={dynamicArtists}
               onSelectSong={handleSelectSong}
-              onSelectMovie={handleSelectMovie}
-              onSelectArtist={handleSelectArtist}
+              onSelectMovie={(movie) => executeSearch(movie.title)}
+              onSelectArtist={(artist) => executeSearch(artist.name)}
             />
           </div>
         )}

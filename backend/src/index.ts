@@ -135,39 +135,69 @@ app.get('/api/songs/:slug', (c) => {
   });
 });
 
-// GET /api/search - Sub-millisecond indexed search
+// GET /api/search - Sub-millisecond indexed search with full song, movie & artist matching
 app.get('/api/search', (c) => {
   const q = c.req.query('q')?.toLowerCase().trim() || '';
   if (!q) {
-    return c.json({ success: true, count: 0, results: [] });
+    return c.json({ success: true, count: 0, results: [], songs: [], movies: [], artists: [] });
   }
 
-  const results = songs
-    .filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.movie.toLowerCase().includes(q) ||
-        s.composer.toLowerCase().includes(q) ||
-        s.lyricist.toLowerCase().includes(q) ||
-        s.singers.some((singer) => singer.toLowerCase().includes(q))
-    )
-    .slice(0, 15)
-    .map((s) => ({
-      id: s.id,
-      slug: s.slug,
-      title: s.title,
-      movie: s.movie,
-      year: s.year,
-      coverUrl: s.coverUrl,
-      composer: s.composer,
-    }));
+  // 1. Matched songs
+  const matchedSongs = songs.filter(
+    (s) =>
+      s.title.toLowerCase().includes(q) ||
+      s.movie.toLowerCase().includes(q) ||
+      s.composer.toLowerCase().includes(q) ||
+      s.lyricist.toLowerCase().includes(q) ||
+      s.singers.some((singer) => singer.toLowerCase().includes(q))
+  );
+
+  // 2. Matched movie albums
+  const movieMap = new Map<string, { id: string; title: string; year: number; posterUrl: string; trackCount: number }>();
+  songs.forEach((s) => {
+    if (s.movie && s.movie.toLowerCase().includes(q)) {
+      const key = s.movie.toLowerCase().trim();
+      if (!movieMap.has(key)) {
+        movieMap.set(key, {
+          id: key.replace(/[^a-z0-9]+/g, '-'),
+          title: s.movie,
+          year: s.year || 2024,
+          posterUrl: s.coverUrl,
+          trackCount: 1,
+        });
+      } else {
+        const item = movieMap.get(key)!;
+        item.trackCount += 1;
+      }
+    }
+  });
+
+  // 3. Matched artists
+  const artistMap = new Map<string, { id: string; name: string; role: string; imageUrl: string }>();
+  songs.forEach((s) => {
+    if (s.composer && s.composer.toLowerCase().includes(q)) {
+      const key = s.composer.toLowerCase().trim();
+      if (!artistMap.has(key)) {
+        artistMap.set(key, {
+          id: key.replace(/[^a-z0-9]+/g, '-'),
+          name: s.composer,
+          role: 'Music Director',
+          imageUrl: s.coverUrl,
+        });
+      }
+    }
+  });
 
   c.header('Cache-Control', 'public, max-age=120');
 
   return c.json({
     success: true,
-    count: results.length,
-    results,
+    query: q,
+    count: matchedSongs.length,
+    results: matchedSongs,
+    songs: matchedSongs,
+    movies: Array.from(movieMap.values()),
+    artists: Array.from(artistMap.values()),
   });
 });
 

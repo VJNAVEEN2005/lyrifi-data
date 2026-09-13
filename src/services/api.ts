@@ -1,7 +1,13 @@
-import { Song } from '../data';
+import { Song, MovieAlbum, Artist } from '../data';
 
 // If Cloudflare Worker is deployed or running locally, use it; otherwise fallback cleanly
 const API_BASE_URL = ((import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) || 'http://127.0.0.1:8787';
+
+export interface BackendSearchResults {
+  songs: Song[];
+  movies: MovieAlbum[];
+  artists: Artist[];
+}
 
 export interface SongsApiResponse {
   success: boolean;
@@ -82,3 +88,24 @@ export async function recordSongView(id: string): Promise<void> {
     // Non-critical, ignore error
   }
 }
+
+/**
+ * Search songs, movies, and artists directly from backend database
+ */
+export async function searchCatalogFromBackend(query: string): Promise<BackendSearchResults | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query.trim())}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success) return null;
+    return {
+      songs: json.songs || json.results || [],
+      movies: json.movies || [],
+      artists: json.artists || [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+

@@ -20,100 +20,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectMovie,
   onSelectArtist,
 }) => {
-  const heroSong = songs[0];
-  const nextSong = songs[2] || songs[1];
-
   return (
     <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12'>
       
       {/* 1. TOP SPONSOR BANNER (Leaderboard Ad) */}
       <AdBanner type='leaderboard' />
 
-      {/* 2. HERO SPOTLIGHT CAROUSEL (Direct from the UI Design) */}
-      <div className='relative rounded-3xl overflow-hidden border border-white/10 bg-[#12141c]/90 backdrop-blur-2xl shadow-2xl p-6 sm:p-8'>
-        {/* Ambient Blur Glow behind Hero */}
-        <div 
-          className='absolute -top-24 -left-24 w-96 h-96 rounded-full blur-[100px] opacity-40 pointer-events-none'
-          style={{ background: heroSong.primaryGlowColor }}
-        />
-
-        <div className='relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center'>
-          
-          {/* Hero Left Meta */}
-          <div className='lg:col-span-6 space-y-4'>
-            <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 text-xs font-bold uppercase tracking-wider'>
-              <Sparkles className='w-3.5 h-3.5' /> Trending Now
-            </div>
-
-            <h1 className='text-4xl sm:text-5xl font-black tracking-tight text-white'>
-              {heroSong.title}
-            </h1>
-
-            <p className='text-base text-gray-300'>
-              <span className='font-semibold text-white'>{heroSong.composer}</span> • From {heroSong.movie} ({heroSong.year})
-            </p>
-
-            <p className='text-sm text-gray-400 line-clamp-2 max-w-lg'>
-              A timeless anthem that still gives goosebumps. Explore lyrics in both authentic Tamil font and easy-read Tanglish.
-            </p>
-
-            <div className='flex flex-wrap items-center gap-4 pt-2'>
-              <button
-                onClick={() => onSelectSong(heroSong)}
-                className='px-6 py-3 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm shadow-xl shadow-pink-500/25 transition active:scale-95 flex items-center gap-2'
-              >
-                View Lyrics <ChevronRight className='w-4 h-4' />
-              </button>
-            </div>
-          </div>
-
-          {/* Hero Center & Right Showcase Covers */}
-          <div className='lg:col-span-6 flex items-center justify-center lg:justify-end gap-5'>
-            {/* Main Center Artwork */}
-            <div 
-              onClick={() => onSelectSong(heroSong)}
-              className='relative w-48 sm:w-64 aspect-square rounded-2xl overflow-hidden shadow-2xl group cursor-pointer border border-white/15 transform hover:-translate-y-1 transition duration-300'
-            >
-              <img
-                src={heroSong.coverUrl}
-                alt={heroSong.title}
-                className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
-              />
-              <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-4'>
-                <div className='text-lg font-black text-white leading-tight'>{heroSong.title}</div>
-                <div className='text-xs text-gray-300'>{heroSong.movie}</div>
-              </div>
-            </div>
-
-            {/* Next Up Card */}
-            {nextSong && (
-              <div 
-                onClick={() => onSelectSong(nextSong)}
-                className='hidden sm:block relative w-36 sm:w-48 aspect-square rounded-2xl overflow-hidden shadow-xl group cursor-pointer border border-white/10 opacity-75 hover:opacity-100 transform hover:-translate-y-1 transition duration-300'
-              >
-                <img
-                  src={nextSong.coverUrl}
-                  alt={nextSong.title}
-                  className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
-                />
-                <div className='absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-3'>
-                  <span className='text-[10px] uppercase font-bold text-pink-400 tracking-wider mb-0.5'>Next Up</span>
-                  <div className='text-sm font-bold text-white leading-tight truncate'>{nextSong.title}</div>
-                  <div className='text-[11px] text-gray-400 truncate'>{nextSong.movie}</div>
-                </div>
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
-
-      {/* 3. TOP 10 CHARTS (Apple Music / Genius Style Grid) */}
+      {/* 2. POPULAR TAMIL SONGS (Apple Music / Genius Style Grid) */}
       <section className='space-y-6'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <h2 className='text-2xl font-black tracking-tight text-white flex items-center gap-2'>
-              Top 10 Charts <ChevronRight className='w-5 h-5 text-gray-500' />
+              Popular Songs <ChevronRight className='w-5 h-5 text-gray-500' />
             </h2>
           </div>
           <div className='flex items-center gap-2 text-xs font-semibold'>
@@ -164,8 +82,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 4. LATEST MOVIE ALBUMS (Posters Grid) */}
-      <section className='space-y-5'>
+      {/* 3. LATEST MOVIE ALBUMS (Posters Grid) */}
+      <section id='movies' className='space-y-5 scroll-mt-20'>
         <div className='flex items-center justify-between'>
           <h2 className='text-2xl font-black tracking-tight text-white flex items-center gap-2'>
             Latest Movie Albums <ChevronRight className='w-5 h-5 text-gray-500' />
@@ -209,8 +127,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 5. POPULAR ARTISTS & COMPOSERS (Circular Avatars) */}
-      <section className='space-y-5 pt-2'>
+      {/* 4. POPULAR ARTISTS & COMPOSERS (Circular Avatars) */}
+      <section id='artists' className='space-y-5 pt-2 scroll-mt-20'>
         <div className='flex items-center justify-between'>
           <h2 className='text-2xl font-black tracking-tight text-white flex items-center gap-2'>
             Popular Artists & Composers <ChevronRight className='w-5 h-5 text-gray-500' />
