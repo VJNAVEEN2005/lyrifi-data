@@ -51,12 +51,18 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [localInput, setLocalInput] = useState<string>(searchQuery);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [isDeepSearchModalOpen, setIsDeepSearchModalOpen] = useState<boolean>(false);
+  const [visibleSongs, setVisibleSongs] = useState<number>(20);
+  const [visibleMovies, setVisibleMovies] = useState<number>(20);
+  const [visibleArtists, setVisibleArtists] = useState<number>(20);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync local input if external searchQuery changes (e.g. via URL or back button) and close dropdown
   useEffect(() => {
     setLocalInput(searchQuery);
     setShowDropdown(false);
+    setVisibleSongs(20);
+    setVisibleMovies(20);
+    setVisibleArtists(20);
   }, [searchQuery]);
 
   // Close recommendations dropdown on outside click
@@ -554,7 +560,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               </div>
 
               <div className='grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4'>
-                {matchedSongs.map((song, idx) => (
+                {matchedSongs.slice(0, visibleSongs).map((song, idx) => (
                   <div
                     key={song.id}
                     onClick={() => onSelectSong(song)}
@@ -594,6 +600,13 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   </div>
                 ))}
               </div>
+              {matchedSongs.length > visibleSongs && (
+                <div className='text-center pt-2'>
+                  <button onClick={() => setVisibleSongs((v) => v + 20)} className='px-6 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold text-gray-300 hover:text-white transition'>
+                    Show More Songs ({matchedSongs.length - visibleSongs} remaining)
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -606,7 +619,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               </h2>
 
               <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4'>
-                {matchedMovies.map((movie) => (
+                {matchedMovies.slice(0, visibleMovies).map((movie) => (
                   <div
                     key={movie.id}
                     onClick={() => onSelectMovie(movie)}
@@ -631,6 +644,13 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   </div>
                 ))}
               </div>
+              {matchedMovies.length > visibleMovies && (
+                <div className='text-center pt-2'>
+                  <button onClick={() => setVisibleMovies((v) => v + 20)} className='px-6 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold text-gray-300 hover:text-white transition'>
+                    Show More Movies ({matchedMovies.length - visibleMovies} remaining)
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -643,7 +663,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               </h2>
 
               <div className='grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4 text-center'>
-                {matchedArtists.map((artist) => (
+                {matchedArtists.slice(0, visibleArtists).map((artist) => (
                   <div
                     key={artist.id}
                     onClick={() => onSelectArtist(artist)}
@@ -668,6 +688,13 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   </div>
                 ))}
               </div>
+              {matchedArtists.length > visibleArtists && (
+                <div className='text-center pt-2'>
+                  <button onClick={() => setVisibleArtists((v) => v + 20)} className='px-6 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold text-gray-300 hover:text-white transition'>
+                    Show More Artists ({matchedArtists.length - visibleArtists} remaining)
+                  </button>
+                </div>
+              )}
             </section>
           )}
 

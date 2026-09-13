@@ -140,6 +140,12 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
     return allArtistSongs;
   }, [activeTab, composedSongs, sungSongs, allArtistSongs]);
 
+  const [visibleArtistSongs, setVisibleArtistSongs] = useState<number>(20);
+  const [visibleArtistMovies, setVisibleArtistMovies] = useState<number>(12);
+
+  // Reset when tab changes
+  React.useEffect(() => { setVisibleArtistSongs(20); }, [activeTab]);
+
   const handleCopyLink = () => {
     const fullUrl = window.location.origin + getArtistUrl(artist);
     navigator.clipboard.writeText(fullUrl);
@@ -275,7 +281,7 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
             </div>
 
             <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4'>
-              {artistMovies.map((album) => (
+              {artistMovies.slice(0, visibleArtistMovies).map((album) => (
                 <div
                   key={album.id}
                   onClick={() => onSelectMovie(album)}
@@ -304,6 +310,13 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
                 </div>
               ))}
             </div>
+            {artistMovies.length > visibleArtistMovies && (
+              <div className='text-center pt-2'>
+                <button onClick={() => setVisibleArtistMovies((v) => v + 12)} className='px-6 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold text-gray-300 hover:text-white transition'>
+                  Show More Albums ({artistMovies.length - visibleArtistMovies} remaining)
+                </button>
+              </div>
+            )}
           </section>
         )}
 
@@ -355,7 +368,7 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
           {/* Songs List */}
           {displayedSongs.length > 0 ? (
             <div className='space-y-2'>
-              {displayedSongs.map((song, idx) => (
+              {displayedSongs.slice(0, visibleArtistSongs).map((song, idx) => (
                 <div
                   key={song.id || idx}
                   onClick={() => onSelectSong(song)}
@@ -400,6 +413,13 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
             <div className='p-8 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-3'>
               <Music className='w-10 h-10 text-gray-500 mx-auto' />
               <p className='text-sm text-gray-300'>No tracks found in this category.</p>
+            </div>
+          )}
+          {displayedSongs.length > visibleArtistSongs && (
+            <div className='text-center pt-2'>
+              <button onClick={() => setVisibleArtistSongs((v) => v + 20)} className='px-6 py-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold text-gray-300 hover:text-white transition'>
+                Show More Songs ({displayedSongs.length - visibleArtistSongs} remaining)
+              </button>
             </div>
           )}
         </section>
