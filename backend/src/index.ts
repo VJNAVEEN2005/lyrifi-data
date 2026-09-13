@@ -523,10 +523,16 @@ async function scrapeSongPage(
       pageHtml.match(/<div[^>]*lang=["']ta["'][^>]*>([\s\S]*?)<\/div>/i);
 
     if (tamilPanelMatch) {
-      const tHtml = tamilPanelMatch[1];
+      let tHtml = tamilPanelMatch[1];
+      tHtml = tHtml.replace(
+        /<div[^>]*class=["'][^"']*t2l-part-divider[^"']*["'][^>]*>[\s\S]*?<span[^>]*class=["'][^"']*text-[^"']*["'][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/div>/gi,
+        '\n$1\n'
+      );
+      tHtml = tHtml.replace(/<strong>\s*([^<:]+:\s*)<\/strong>/gi, '\n$1\n');
+      tHtml = tHtml.replace(/<br\s*\/?>/gi, '\n');
       const pMatches = tHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [tHtml];
       for (const p of pMatches) {
-        const clean = p.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        const clean = p.replace(/<[^>]+>/g, '').trim();
         const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
         for (const line of lines) {
           if (/[\u0B80-\u0BFF]/.test(line) || line.includes(':')) {
@@ -542,11 +548,17 @@ async function scrapeSongPage(
       pageHtml.match(/<div[^>]*data-print-lang=["']english["'][^>]*>([\s\S]*?)<\/div>/i);
 
     if (englishPanelMatch) {
-      const eHtml = englishPanelMatch[1];
+      let eHtml = englishPanelMatch[1];
+      eHtml = eHtml.replace(
+        /<div[^>]*class=["'][^"']*t2l-part-divider[^"']*["'][^>]*>[\s\S]*?<span[^>]*class=["'][^"']*text-[^"']*["'][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/div>/gi,
+        '\n$1\n'
+      );
+      eHtml = eHtml.replace(/<strong>\s*([^<:]+:\s*)<\/strong>/gi, '\n$1\n');
+      eHtml = eHtml.replace(/<br\s*\/?>/gi, '\n');
       const pMatches = eHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [eHtml];
       const skipWords = new Set(['home', 'movies', 'music directors', 'lyricists', 'tamil2lyrics', 'copy', 'a+', 'a-']);
       for (const p of pMatches) {
-        const clean = p.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+        const clean = p.replace(/<[^>]+>/g, '').trim();
         const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
         for (const line of lines) {
           if (!skipWords.has(line.toLowerCase()) && line.length > 1 && !line.startsWith('http')) {

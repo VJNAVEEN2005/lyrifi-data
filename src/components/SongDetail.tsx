@@ -28,36 +28,71 @@ interface SongDetailProps {
   onSelectMovie?: (movie: MovieAlbum) => void;
 }
 
-// Helper to detect section headings in both Tamil and English/Tanglish
-const isHeadingLine = (rawLine: string): boolean => {
+interface ParsedLyricLine {
+  isHeading: boolean;
+  prefix?: string;
+  text: string;
+}
+
+// Helper to detect section headings and inline singer/role labels in Tamil and English/Tanglish
+const parseLyricLine = (rawLine: string): ParsedLyricLine => {
   const line = rawLine.trim();
-  if (!line || line.length > 35) return false;
+  if (!line) return { isHeading: false, text: '' };
 
-  // Explicit colon ending e.g. "Male :", "Female :", "Chorus :", "பாடகர்கள் :"
-  if (line.endsWith(':')) return true;
-
-  // Tamil heading keywords
-  if (
-    line.includes('பாடகர்கள்') || 
-    line.includes('இசையமைப்பாளர்') || 
-    line.includes('பாடலாசிரியர்') || 
-    line.includes('பெண்') || 
-    line.includes('ஆண்') || 
-    line.includes('குழு')
-  ) {
-    if (line.length <= 25) return true;
-  }
-
-  // English & Tanglish structural heading keywords (e.g. "Female Part", "Male Part", "Chorus")
   const clean = line.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
   const headingKeywords = [
     'female part', 'male part', 'female', 'male', 'both', 'both part',
     'chorus', 'verse 1', 'verse 2', 'verse 3', 'verse',
     'singers', 'singer', 'music', 'music director', 'lyricist',
-    'humming', 'whistle', 'dialogue', 'intro', 'outro', 'hook', 'bridge'
+    'humming', 'whistle', 'dialogue', 'intro', 'outro', 'hook', 'bridge',
+    'male and chorus', 'female and chorus', 'male chorus', 'female chorus',
+    'part 1', 'part 2'
   ];
 
-  return headingKeywords.includes(clean);
+  if (headingKeywords.includes(clean)) {
+    return { isHeading: true, text: line };
+  }
+
+  // Explicit colon ending e.g. "Male :", "Female :", "Chorus :", "Male and Chorus :"
+  if (line.endsWith(':') && line.length <= 40) {
+    return { isHeading: true, text: line };
+  }
+
+  // Tamil heading keywords when short or ending with colon
+  if (
+    line.includes('பாடகர்கள்') || 
+    line.includes('இசையமைப்பாளர்') || 
+    line.includes('பாடலாசிரியர்') || 
+    line.includes('பாடல் ஆசிரியர்') ||
+    line.includes('பெண்') || 
+    line.includes('ஆண்') || 
+    line.includes('குழு')
+  ) {
+    if (line.endsWith(':') || line.length <= 25) {
+      return { isHeading: true, text: line };
+    }
+  }
+
+  // Inline singer/chorus/role tag prefix
+  // e.g. "Male and Chorus : I am shit scared of that"
+  // "Singer : Anirudh Ravichander"
+  // "Music by : Anirudh Ravichander"
+  // "Lyrics by : Heisenberg"
+  // "ஆண் : உயிர் பாதி உனக்கே"
+  const prefixMatch = line.match(
+    /^((?:Male(?:\s+(?:and|&)\s+|\s+)Chorus|Female(?:\s+(?:and|&)\s+|\s+)Chorus|Male\s+Part|Female\s+Part|Male|Female|Chorus|Singer[s]?|Music(?:\s+by)?|Lyrics(?:\s+by)?|Lyricist|ஆண்(?:\s+(?:மற்றும்|&)\s+|\s+)குழு|பெண்(?:\s+(?:மற்றும்|&)\s+|\s+)குழு|ஆண்|பெண்|குழு|பாடகர்கள்|பாடகர்|இசையமைப்பாளர்|பாடல்\s*ஆசிரியர்|பாடலாசிரியர்)\s*[:–—-])\s*(.*)$/i
+  );
+
+  if (prefixMatch) {
+    const prefix = prefixMatch[1].trim();
+    const rest = prefixMatch[2].trim();
+    if (!rest) {
+      return { isHeading: true, text: prefix };
+    }
+    return { isHeading: false, prefix, text: rest };
+  }
+
+  return { isHeading: false, text: line };
 };
 
 export const SongDetail: React.FC<SongDetailProps> = ({
@@ -272,10 +307,12 @@ export const SongDetail: React.FC<SongDetailProps> = ({
               </div>
             </div>
 
-            {/* Song Lyrics - High-Contrast & Clearly Visible */}
+            {/* Song Lyrics - High-Contrast & Clearly Visible with Highlighted Headings & Singer Tags */}
             <div className='py-6 text-center mx-auto max-w-3xl space-y-4 sm:space-y-5'>
-              {currentLyrics.map((line: string, index: number) => {
-                const isSectionTag = isHeadingLine(line);
+              {currentLyrics.map((rawLine: string, index: number) => {
+                const parsed = parseLyricLine(rawLine);
+                const isActive = index === activeLine;
+
                 return (
                   <React.Fragment key={index}>
                     {/* Native In-Lyrics Ad Banner after line 6 */}
@@ -284,17 +321,27 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                         <AdBanner type='in-lyrics' />
                       </div>
                     )}
-                    {isSectionTag ? (
-                      <p className='text-rose-400 font-extrabold text-sm sm:text-base uppercase tracking-widest pt-4 pb-1 select-text drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]'>
-                        {line}
+                    {parsed.isHeading ? (
+                      <p className='text-rose-400 font-extrabold text-sm sm:text-base uppercase tracking-widest pt-4 pb-1 select-text drop-shadow-[0_2px_8px_rgba(244,63,94,0.5)]'>
+                        {parsed.text}
                       </p>
                     ) : (
-                      <p
+                      <div
+                        onClick={() => setActiveLine(index)}
                         style={{ fontSize: fontSize + 'px' }}
-                        className='text-white font-bold tracking-tight leading-relaxed select-text hover:text-rose-200 transition-colors duration-150 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)]'
+                        className={`cursor-pointer transition-all duration-200 select-text py-1 px-3 rounded-2xl ${
+                          isActive
+                            ? 'text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-rose-200 to-amber-100 font-black drop-shadow-[0_4px_16px_rgba(244,63,94,0.6)] scale-[1.03] bg-white/[0.05]'
+                            : 'text-white/90 font-bold tracking-tight leading-relaxed hover:text-white hover:scale-[1.01]'
+                        }`}
                       >
-                        {line}
-                      </p>
+                        {parsed.prefix && (
+                          <span className='text-rose-400 font-extrabold uppercase tracking-wider mr-2 drop-shadow-[0_2px_8px_rgba(244,63,94,0.4)]'>
+                            {parsed.prefix}
+                          </span>
+                        )}
+                        <span>{parsed.text}</span>
+                      </div>
                     )}
                   </React.Fragment>
                 );
