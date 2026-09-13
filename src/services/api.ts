@@ -1,7 +1,12 @@
 import { Song, MovieAlbum, Artist } from '../data';
 
-// If Cloudflare Worker is deployed or running locally, use it; otherwise fallback cleanly
-const API_BASE_URL = ((import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) || 'http://127.0.0.1:8787';
+// Use deployed Cloudflare Worker in production, localhost in dev
+const API_BASE_URL: string =
+  (typeof window !== 'undefined' &&
+  window.location.hostname !== 'localhost' &&
+  window.location.hostname !== '127.0.0.1'
+    ? 'https://lyrifi-api.ai-image-generator.workers.dev'
+    : 'http://127.0.0.1:8787');
 
 export interface BackendSearchResults {
   songs: Song[];
