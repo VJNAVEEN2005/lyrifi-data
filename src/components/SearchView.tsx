@@ -504,6 +504,42 @@ export const SearchView: React.FC<SearchViewProps> = ({
             </div>
           )}
 
+          {/* FEATURED MATCHED MOVIE ALBUM BANNER */}
+          {matchedMovies.length > 0 && (
+            <div
+              onClick={() => onSelectMovie(matchedMovies[0])}
+              className='cursor-pointer group relative overflow-hidden rounded-3xl bg-gradient-to-r from-rose-500/20 via-purple-500/10 to-transparent border border-rose-500/30 hover:border-rose-500/60 p-5 sm:p-6 transition duration-300 shadow-2xl backdrop-blur-md'
+            >
+              <div className='flex items-center gap-4 sm:gap-6'>
+                <div className='relative w-16 h-20 sm:w-20 sm:h-24 rounded-2xl overflow-hidden shadow-lg border border-white/20 shrink-0 bg-white/5'>
+                  <img
+                    src={matchedMovies[0].posterUrl}
+                    alt={matchedMovies[0].title}
+                    className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
+                  />
+                </div>
+
+                <div className='flex-1 min-w-0 space-y-1'>
+                  <div className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-[10px] font-extrabold uppercase tracking-wider text-rose-300'>
+                    <Film className='w-3 h-3' />
+                    <span>Movie Album Found</span>
+                  </div>
+                  <h3 className='text-xl sm:text-2xl font-black text-white group-hover:text-rose-300 transition truncate uppercase'>
+                    {matchedMovies[0].title}
+                  </h3>
+                  <p className='text-xs sm:text-sm text-gray-300'>
+                    Released {matchedMovies[0].year} • <strong className='text-white'>{matchedMovies[0].trackCount} Tracks</strong> inside
+                  </p>
+                </div>
+
+                <div className='hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 group-hover:scale-105 transition'>
+                  <span>Open Movie Page</span>
+                  <ChevronRight className='w-4 h-4' />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* SECTION A: MATCHED SONGS */}
           {(activeFilter === 'all' || activeFilter === 'songs') && matchedSongs.length > 0 && (
             <section className='space-y-4'>

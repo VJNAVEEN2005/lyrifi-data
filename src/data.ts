@@ -26,7 +26,26 @@ export interface MovieAlbum {
   year: number;
   posterUrl: string;
   trackCount: number;
+  backdropUrl?: string;
+  composer?: string;
+  singers?: string[];
+  songs?: Song[];
 }
+
+export const slugifyMovieTitle = (title: string): string => {
+  return (title || '')
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+export const getMovieUrl = (movie: { title: string; year?: number }): string => {
+  const year = movie.year || 2024;
+  const slug = slugifyMovieTitle(movie.title);
+  return `/movie/${year}/${slug}`;
+};
 
 export interface Artist {
   id: string;

@@ -3,8 +3,9 @@ import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { SearchView } from './components/SearchView';
 import { SongDetail } from './components/SongDetail';
+import { MovieDetail } from './components/MovieDetail';
 import { LogoLoader } from './components/LogoLoader';
-import { sampleSongs, Song, MovieAlbum, Artist } from './data';
+import { sampleSongs, Song, MovieAlbum, Artist, slugifyMovieTitle, getMovieUrl } from './data';
 import { scrapedCatalog } from './scrapedData';
 import { 
   fetchSongLyrics, 
@@ -124,6 +125,23 @@ export function App() {
     }
     return allAvailableSongs[0];
   });
+  const [selectedMovie, setSelectedMovie] = useState<MovieAlbum | null>(() => {
+    const path = window.location.pathname;
+    const movieMatch = path.match(/^\/movie\/([0-9]{4})\/([a-zA-Z0-9_-]+)/);
+    if (movieMatch) {
+      const year = parseInt(movieMatch[1], 10);
+      const albumSlug = movieMatch[2].toLowerCase();
+      return {
+        id: albumSlug,
+        title: albumSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        year,
+        posterUrl: '',
+        trackCount: 0,
+      };
+    }
+    return null;
+  });
+
   const [activeTab, setActiveTab] = useState<'home' | 'movies' | 'artists' | 'search'>(() => {
     const path = window.location.pathname;
     if (path.startsWith('/search')) {
@@ -224,9 +242,15 @@ export function App() {
         if (type === 'movie' && response.songs && response.songs.length > 0) {
           // Add newly scraped songs to extra songs state
           setExtraSongs((prev) => [...response.songs!, ...prev]);
-          // Refresh search with the movie title to display movie album card and all songs
-          const movieSearchQuery = response.movieTitle || query.trim();
-          await executeSearch(movieSearchQuery);
+          const movieTitle = response.movieTitle || query.trim();
+          const firstSong = response.songs[0];
+          handleSelectMovie({
+            id: slugifyMovieTitle(movieTitle),
+            title: movieTitle,
+            year: firstSong.year || 2024,
+            posterUrl: firstSong.coverUrl,
+            trackCount: response.songs.length,
+          });
         } else if (response.song) {
           // Single song scraped
           setExtraSongs((prev) => [response.song!, ...prev]);
@@ -265,6 +289,20 @@ export function App() {
     }
   }, [selectedSong]);
 
+  // Synchronize selectedMovie with dynamicMovieAlbums once loaded
+  useEffect(() => {
+    if (selectedMovie && (!selectedMovie.posterUrl || selectedMovie.trackCount === 0)) {
+      const albumSlug = slugifyMovieTitle(selectedMovie.title);
+      const matched = dynamicMovieAlbums.find(
+        (m) => slugifyMovieTitle(m.title) === albumSlug && (isNaN(selectedMovie.year) || m.year === selectedMovie.year)
+      ) || dynamicMovieAlbums.find((m) => slugifyMovieTitle(m.title) === albumSlug);
+
+      if (matched) {
+        setSelectedMovie(matched);
+      }
+    }
+  }, [selectedMovie, dynamicMovieAlbums]);
+
   // Handle browser Back / Forward buttons (popstate)
   useEffect(() => {
     const handlePopState = () => {
@@ -275,11 +313,36 @@ export function App() {
         const found = allAvailableSongs.find((s) => s.slug === slugOrId || s.id === slugOrId);
         if (found) {
           setSelectedSong(found);
+          setSelectedMovie(null);
           setCurrentPlayingSong(found);
           return;
         }
-      } else if (path.startsWith('/search')) {
+      }
+
+      const movieMatch = path.match(/^\/movie\/([0-9]{4})\/([a-zA-Z0-9_-]+)/);
+      if (movieMatch) {
+        const year = parseInt(movieMatch[1], 10);
+        const albumSlug = movieMatch[2].toLowerCase();
         setSelectedSong(null);
+        const found = dynamicMovieAlbums.find(
+          (m) => slugifyMovieTitle(m.title) === albumSlug && (isNaN(year) || m.year === year)
+        ) || dynamicMovieAlbums.find((m) => slugifyMovieTitle(m.title) === albumSlug);
+
+        setSelectedMovie(
+          found || {
+            id: albumSlug,
+            title: albumSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+            year,
+            posterUrl: '',
+            trackCount: 0,
+          }
+        );
+        return;
+      }
+
+      if (path.startsWith('/search')) {
+        setSelectedSong(null);
+        setSelectedMovie(null);
         setActiveTab('search');
         const params = new URLSearchParams(window.location.search);
         const q = params.get('q') || '';
@@ -291,8 +354,10 @@ export function App() {
         }
         return;
       }
+
       // If returning to home or any other path
       setSelectedSong(null);
+      setSelectedMovie(null);
       setActiveTab('home');
       setSearchQuery('');
       setBackendResults(null);
@@ -300,7 +365,7 @@ export function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [allAvailableSongs]);
+  }, [allAvailableSongs, dynamicMovieAlbums]);
 
   // Handle tab switching
   const handleTabChange = (tab: 'home' | 'movies' | 'artists' | 'search') => {
@@ -362,7 +427,25 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSelectMovie = (movie: MovieAlbum) => {
+    setSelectedSong(null);
+    setSelectedMovie(movie);
+    const targetPath = getMovieUrl(movie);
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ type: 'movie', movie }, '', targetPath);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleBackFromSong = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      handleGoHome();
+    }
+  };
+
+  const handleBackFromMovie = () => {
     if (window.history.length > 1) {
       window.history.back();
     } else {
@@ -381,7 +464,7 @@ export function App() {
         movies={dynamicMovieAlbums}
         artists={dynamicArtists}
         onSelectSong={handleSelectSong}
-        onSelectMovie={(movie) => executeSearch(movie.title)}
+        onSelectMovie={handleSelectMovie}
         onSelectArtist={(artist) => executeSearch(artist.name)}
         onSubmitSearch={executeSearch}
         onDeepSearch={handleDeepSearch}
@@ -404,6 +487,17 @@ export function App() {
             onBack={handleBackFromSong}
             onSelectSong={handleSelectSong}
             allSongs={allAvailableSongs}
+            onSelectMovie={handleSelectMovie}
+          />
+        ) : selectedMovie ? (
+          /* DEDICATED MOVIE ALBUM PAGE VIEW */
+          <MovieDetail
+            movie={selectedMovie}
+            onBack={handleBackFromMovie}
+            onSelectSong={handleSelectSong}
+            allSongs={allAvailableSongs}
+            onDeepSearch={handleDeepSearch}
+            isDeepSearching={isDeepSearching}
           />
         ) : activeTab === 'search' || searchQuery.trim().length > 0 ? (
           /* DEDICATED SEARCH PAGE VIEW */
@@ -416,7 +510,7 @@ export function App() {
             backendResults={backendResults}
             isSearchingBackend={isSearchingBackend}
             onSelectSong={handleSelectSong}
-            onSelectMovie={(movie) => executeSearch(movie.title)}
+            onSelectMovie={handleSelectMovie}
             onSelectArtist={(artist) => executeSearch(artist.name)}
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
@@ -428,7 +522,7 @@ export function App() {
               movies={dynamicMovieAlbums}
               artists={dynamicArtists}
               onSelectSong={handleSelectSong}
-              onSelectMovie={(movie) => executeSearch(movie.title)}
+              onSelectMovie={handleSelectMovie}
               onSelectArtist={(artist) => executeSearch(artist.name)}
             />
           </div>

@@ -226,6 +226,105 @@ app.get('/api/trending', (c) => {
   });
 });
 
+// GET /api/movies/:year/:album - Get dedicated movie album details and all tracks
+app.get('/api/movies/:year/:album', (c) => {
+  const yearParam = parseInt(c.req.param('year'), 10);
+  const albumSlug = c.req.param('album').toLowerCase().trim();
+
+  const toSlug = (str: string) =>
+    (str || '')
+      .toLowerCase()
+      .trim()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+  // 1. Try exact slug and year match
+  let albumSongs = songs.filter((s) => {
+    const slug = toSlug(s.movie);
+    const yearMatch = isNaN(yearParam) || !s.year || s.year === yearParam;
+    return slug === albumSlug && yearMatch;
+  });
+
+  // 2. Fallback: match slug without year
+  if (albumSongs.length === 0) {
+    albumSongs = songs.filter((s) => toSlug(s.movie) === albumSlug);
+  }
+
+  // 3. Fallback: partial slug match
+  if (albumSongs.length === 0) {
+    albumSongs = songs.filter((s) => {
+      const slug = toSlug(s.movie);
+      return slug.includes(albumSlug) || albumSlug.includes(slug);
+    });
+  }
+
+  if (albumSongs.length === 0) {
+    return c.json({ success: false, error: 'Movie album not found' }, 404);
+  }
+
+  const movieTitle = albumSongs[0].movie;
+  const movieYear = albumSongs[0].year || (!isNaN(yearParam) ? yearParam : 2024);
+
+  return c.json({
+    success: true,
+    data: {
+      id: albumSlug,
+      title: movieTitle,
+      year: movieYear,
+      posterUrl: albumSongs[0].coverUrl,
+      backdropUrl: albumSongs[0].backdropUrl || albumSongs[0].coverUrl,
+      primaryGlowColor: albumSongs[0].primaryGlowColor || '#ec4899',
+      secondaryGlowColor: albumSongs[0].secondaryGlowColor || '#f43f5e',
+      composer: albumSongs[0].composer,
+      singers: Array.from(new Set(albumSongs.flatMap((s) => s.singers || []))),
+      trackCount: albumSongs.length,
+      songs: albumSongs,
+    },
+  });
+});
+
+// GET /api/movies/:album - Alias without year in path
+app.get('/api/movies/:album', (c) => {
+  const albumSlug = c.req.param('album').toLowerCase().trim();
+  const toSlug = (str: string) =>
+    (str || '')
+      .toLowerCase()
+      .trim()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+  const albumSongs = songs.filter((s) => {
+    const slug = toSlug(s.movie);
+    return slug === albumSlug || slug.includes(albumSlug) || albumSlug.includes(slug);
+  });
+
+  if (albumSongs.length === 0) {
+    return c.json({ success: false, error: 'Movie album not found' }, 404);
+  }
+
+  const movieTitle = albumSongs[0].movie;
+  const movieYear = albumSongs[0].year || 2024;
+
+  return c.json({
+    success: true,
+    data: {
+      id: albumSlug,
+      title: movieTitle,
+      year: movieYear,
+      posterUrl: albumSongs[0].coverUrl,
+      backdropUrl: albumSongs[0].backdropUrl || albumSongs[0].coverUrl,
+      primaryGlowColor: albumSongs[0].primaryGlowColor || '#ec4899',
+      secondaryGlowColor: albumSongs[0].secondaryGlowColor || '#f43f5e',
+      composer: albumSongs[0].composer,
+      singers: Array.from(new Set(albumSongs.flatMap((s) => s.singers || []))),
+      trackCount: albumSongs.length,
+      songs: albumSongs,
+    },
+  });
+});
+
 // POST /api/scrape-on-demand - Real-time AI Deep Search & Ingestion
 // Helper to scrape a single song page from URL
 async function scrapeSongPage(

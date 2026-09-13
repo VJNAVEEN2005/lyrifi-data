@@ -14,9 +14,10 @@ import {
   TrendingUp,
   Music,
   Users,
-  PlayCircle
+  PlayCircle,
+  ChevronRight
 } from 'lucide-react';
-import { Song } from '../data';
+import { Song, MovieAlbum, slugifyMovieTitle } from '../data';
 import { AdBanner } from './AdBanner';
 
 interface SongDetailProps {
@@ -24,6 +25,7 @@ interface SongDetailProps {
   onBack: () => void;
   onSelectSong: (song: Song) => void;
   allSongs: Song[];
+  onSelectMovie?: (movie: MovieAlbum) => void;
 }
 
 // Helper to detect section headings in both Tamil and English/Tanglish
@@ -63,6 +65,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
   onBack,
   onSelectSong,
   allSongs,
+  onSelectMovie,
 }) => {
   const [language, setLanguage] = useState<'tamil' | 'tanglish'>('tamil');
   const [activeLine, setActiveLine] = useState<number>(song.activeLineIndexDefault || 3);
@@ -190,8 +193,27 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                   {song.singers[0]}
                 </p>
 
-                <div className='text-[11px] sm:text-xs text-gray-400 font-normal'>
-                  {song.movie} ({song.year}) • {song.composer}
+                <div className='text-[11px] sm:text-xs text-gray-400 font-normal flex items-center gap-1 flex-wrap'>
+                  {onSelectMovie ? (
+                    <button
+                      onClick={() =>
+                        onSelectMovie({
+                          id: slugifyMovieTitle(song.movie),
+                          title: song.movie,
+                          year: song.year || 2024,
+                          posterUrl: song.coverUrl,
+                          trackCount: 1,
+                        })
+                      }
+                      className='text-gray-300 hover:text-pink-400 hover:underline font-semibold transition'
+                      title={`View all songs from ${song.movie}`}
+                    >
+                      {song.movie}
+                    </button>
+                  ) : (
+                    <span>{song.movie}</span>
+                  )}
+                  <span>({song.year}) • {song.composer}</span>
                 </div>
 
                 {/* EXACT PILL TOGGLE FROM REFERENCE UI */}
@@ -289,9 +311,29 @@ export const SongDetail: React.FC<SongDetailProps> = ({
               return (
                 <div className='p-5 rounded-3xl bg-[#111319]/80 border border-white/10 backdrop-blur-xl shadow-2xl space-y-3'>
                   <div className='flex items-center justify-between'>
-                    <h3 className='text-xs uppercase font-extrabold tracking-wider text-gray-400 flex items-center gap-1.5'>
-                      <Music className='w-3.5 h-3.5 text-rose-500' /> More from {song.movie}
-                    </h3>
+                    {onSelectMovie ? (
+                      <button
+                        onClick={() =>
+                          onSelectMovie({
+                            id: slugifyMovieTitle(song.movie),
+                            title: song.movie,
+                            year: song.year || 2024,
+                            posterUrl: song.coverUrl,
+                            trackCount: movieTracks.length + 1,
+                          })
+                        }
+                        className='text-xs uppercase font-extrabold tracking-wider text-gray-400 hover:text-pink-400 flex items-center gap-1.5 transition group/mov'
+                        title={`Open ${song.movie} dedicated album page`}
+                      >
+                        <Music className='w-3.5 h-3.5 text-rose-500' />
+                        <span className='group-hover/mov:underline'>More from {song.movie}</span>
+                        <ChevronRight className='w-3 h-3 opacity-0 group-hover/mov:opacity-100 transition' />
+                      </button>
+                    ) : (
+                      <h3 className='text-xs uppercase font-extrabold tracking-wider text-gray-400 flex items-center gap-1.5'>
+                        <Music className='w-3.5 h-3.5 text-rose-500' /> More from {song.movie}
+                      </h3>
+                    )}
                     <span className='text-[11px] text-gray-400'>{movieTracks.length} more track{movieTracks.length > 1 ? 's' : ''}</span>
                   </div>
                   <div className='space-y-2'>

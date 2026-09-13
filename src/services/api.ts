@@ -121,4 +121,38 @@ export async function searchCatalogFromBackend(query: string): Promise<BackendSe
   }
 }
 
+export interface MovieAlbumDetails {
+  id: string;
+  title: string;
+  year: number;
+  posterUrl: string;
+  backdropUrl?: string;
+  primaryGlowColor?: string;
+  secondaryGlowColor?: string;
+  composer?: string;
+  singers?: string[];
+  trackCount: number;
+  songs: Song[];
+}
+
+/**
+ * Fetch dedicated movie album details and all tracks from backend
+ */
+export async function fetchMovieAlbumDetails(
+  year: number | string,
+  albumSlug: string
+): Promise<MovieAlbumDetails | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/movies/${year}/${encodeURIComponent(albumSlug)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.success && json.data) {
+      return json.data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 
