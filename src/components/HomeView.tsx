@@ -184,23 +184,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 6. A - Z DIRECTORY (CRITICAL FOR SEO AND GOOGLE SPIDER CRAWLING) */}
-      <section className='pt-6 border-t border-white/10 space-y-3'>
-        <div className='text-xs uppercase font-extrabold tracking-wider text-gray-400'>
-          Browse Songs by Letter (A - Z Index)
-        </div>
-        <div className='flex flex-wrap gap-2 text-xs font-mono font-bold'>
-          {['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'].map((letter) => (
-            <button
-              key={letter}
-              className='w-8 h-8 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-gray-300 hover:text-white transition flex items-center justify-center'
-            >
-              {letter}
-            </button>
-          ))}
-        </div>
-      </section>
-
     </div>
   );
 };
