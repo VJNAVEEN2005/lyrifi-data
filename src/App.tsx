@@ -1,14 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { SongDetail } from './components/SongDetail';
 import { PlayerBar } from './components/PlayerBar';
+import { LogoLoader } from './components/LogoLoader';
 import { sampleSongs, sampleMovies, sampleArtists, Song } from './data';
 import { scrapedCatalog } from './scrapedData';
+import { fetchSongLyrics, recordSongView } from './services/api';
 import { Heart } from 'lucide-react';
 
 export function App() {
-  // Combine custom polished songs with newly scraped songs (avoiding duplicates)
+  // Combine custom polished songs with scraped catalog (metadata)
   const allAvailableSongs = useMemo(() => {
     const map = new Map<string, Song>();
     sampleSongs.forEach((s) => map.set(s.id, s));
@@ -32,7 +34,6 @@ export function App() {
     return null;
   });
   const [currentPlayingSong, setCurrentPlayingSong] = useState<Song>(() => {
-    // If a song was deep-linked, set it as current playing, otherwise default to first
     const path = window.location.pathname;
     const songMatch = path.match(/^\/song\/([a-zA-Z0-9_-]+)/);
     if (songMatch) {
@@ -44,9 +45,24 @@ export function App() {
   });
   const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts'>('home');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoadingSong, setIsLoadingSong] = useState<boolean>(false);
+
+  // If a song is deep-linked or refreshed, ensure full lyrics are loaded
+  useEffect(() => {
+    if (selectedSong && (!selectedSong.lyricsTamil || selectedSong.lyricsTamil.length === 0)) {
+      setIsLoadingSong(true);
+      fetchSongLyrics(selectedSong.slug || selectedSong.id).then((fullSong) => {
+        if (fullSong && fullSong.lyricsTamil && fullSong.lyricsTamil.length > 0) {
+          setSelectedSong(fullSong);
+          setCurrentPlayingSong(fullSong);
+        }
+        setIsLoadingSong(false);
+      });
+    }
+  }, [selectedSong]);
 
   // Handle browser Back / Forward buttons (popstate)
-  React.useEffect(() => {
+  useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
       const songMatch = path.match(/^\/song\/([a-zA-Z0-9_-]+)/);
@@ -81,15 +97,34 @@ export function App() {
     );
   }, [searchQuery, allAvailableSongs]);
 
-  const handleSelectSong = (song: Song) => {
-    setSelectedSong(song);
-    setCurrentPlayingSong(song);
+  const handleSelectSong = async (song: Song) => {
+    // Record live analytics view in backend
+    recordSongView(song.id);
+
     // Push new clean song URL into browser address bar
     const targetPath = `/song/${song.slug || song.id}`;
     if (window.location.pathname !== targetPath) {
       window.history.pushState({ slug: song.slug || song.id }, '', targetPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // If lyrics are already present, render immediately
+    if (song.lyricsTamil && song.lyricsTamil.length > 0) {
+      setSelectedSong(song);
+      setCurrentPlayingSong(song);
+      return;
+    }
+
+    // Otherwise fetch on-demand with Lyrifi animated equalizer loader
+    setIsLoadingSong(true);
+    setSelectedSong(song);
+    setCurrentPlayingSong(song);
+    const fullSong = await fetchSongLyrics(song.slug || song.id);
+    if (fullSong) {
+      setSelectedSong(fullSong);
+      setCurrentPlayingSong(fullSong);
+    }
+    setIsLoadingSong(false);
   };
 
   const handleGoHome = () => {
@@ -113,7 +148,11 @@ export function App() {
 
       {/* Main View Router */}
       <main className='flex-1 pb-24'>
-        {selectedSong ? (
+        {isLoadingSong ? (
+          <div className='min-h-[70vh] flex items-center justify-center'>
+            <LogoLoader message='Fetching authentic verified lyrics...' />
+          </div>
+        ) : selectedSong ? (
           <SongDetail
             song={selectedSong}
             onBack={handleGoHome}

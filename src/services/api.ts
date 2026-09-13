@@ -1,0 +1,65 @@
+import { Song } from '../data';
+
+// If Cloudflare Worker is deployed or running locally, use it; otherwise fallback cleanly
+const API_BASE_URL = ((import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) || 'http://127.0.0.1:8787';
+
+export interface SongsApiResponse {
+  success: boolean;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Partial<Song>[];
+}
+
+export interface SongDetailApiResponse {
+  success: boolean;
+  data: Song;
+}
+
+/**
+ * Fetch lightweight catalog listing (fast, minimal bytes)
+ */
+export async function fetchSongsList(query = '', page = 1, limit = 50): Promise<Partial<Song>[] | null> {
+  try {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    params.set('page', String(page));
+    params.set('limit', String(limit));
+
+    const res = await fetch(`${API_BASE_URL}/api/songs?${params.toString()}`);
+    if (!res.ok) return null;
+    const json: SongsApiResponse = await res.json();
+    return json.data;
+  } catch {
+    return null; // Fallback to offline/bundled cache if backend is not reachable
+  }
+}
+
+/**
+ * Fetch single song's complete Tamil & Tanglish lyrics on demand
+ */
+export async function fetchSongLyrics(slugOrId: string): Promise<Song | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/songs/${slugOrId}`);
+    if (!res.ok) return null;
+    const json: SongDetailApiResponse = await res.json();
+    return json.data;
+  } catch {
+    return null; // Fallback to bundled cache
+  }
+}
+
+/**
+ * Record live song view to backend
+ */
+export async function recordSongView(id: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/songs/${id}/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    // Non-critical, ignore error
+  }
+}

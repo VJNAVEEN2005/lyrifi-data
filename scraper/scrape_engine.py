@@ -342,7 +342,12 @@ def run_scraper(limit=10, discover=True, fetch_yt=True):
     with open(out_file, 'w', encoding='utf-8') as f:
         json.dump(all_songs, f, ensure_ascii=False, indent=2)
 
-    # Auto-sync to frontend dataset
+    # Sync complete lyrics database to Cloudflare Backend
+    os.makedirs('backend/src', exist_ok=True)
+    with open('backend/src/songs.json', 'w', encoding='utf-8') as f:
+        json.dump(all_songs, f, ensure_ascii=False, indent=2)
+
+    # Auto-sync to frontend dataset (safe fallback with lightweight metadata)
     with open('src/scrapedData.ts', 'w', encoding='utf-8') as f:
         f.write("// Auto-generated catalog from Automated Scraper Engine\n")
         f.write("import { Song } from './data';\n\n")
