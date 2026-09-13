@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Sparkles, TrendingUp, ChevronRight, Music2, Eye } from 'lucide-react';
+import { Play, Sparkles, TrendingUp, ChevronRight, Music2, Eye, Disc3, Mic2 } from 'lucide-react';
 import { Song, MovieAlbum, Artist } from '../data';
 import { AdBanner } from './AdBanner';
 
@@ -8,6 +8,8 @@ interface HomeViewProps {
   movies: MovieAlbum[];
   artists: Artist[];
   onSelectSong: (song: Song) => void;
+  onSelectMovie?: (movie: MovieAlbum) => void;
+  onSelectArtist?: (artist: Artist) => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -15,6 +17,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   movies,
   artists,
   onSelectSong,
+  onSelectMovie,
+  onSelectArtist,
 }) => {
   const heroSong = songs[0];
   const nextSong = songs[2] || songs[1];
@@ -181,7 +185,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div
               key={movie.id}
               className='group cursor-pointer space-y-2.5'
-              onClick={() => onSelectSong(songs[0])}
+              onClick={() => {
+                if (onSelectMovie) {
+                  onSelectMovie(movie);
+                } else {
+                  // Fallback to finding first song matching this movie
+                  const match = songs.find((s) => s.movie.toLowerCase() === movie.title.toLowerCase());
+                  if (match) onSelectSong(match);
+                }
+              }}
             >
               <div className='relative aspect-[3/4] rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-white/5'>
                 <img
@@ -190,7 +202,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
                 />
                 <div className='absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-[10px] text-white font-bold'>
-                  {movie.trackCount} Tracks
+                  {movie.trackCount} {movie.trackCount === 1 ? 'Track' : 'Tracks'}
                 </div>
               </div>
               <div>
@@ -218,7 +230,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div
               key={artist.id}
               className='group cursor-pointer space-y-2 flex flex-col items-center'
-              onClick={() => onSelectSong(songs[0])}
+              onClick={() => {
+                if (onSelectArtist) {
+                  onSelectArtist(artist);
+                } else {
+                  const match = songs.find(
+                    (s) =>
+                      s.composer.toLowerCase().includes(artist.name.toLowerCase()) ||
+                      s.singers.some((singer) => singer.toLowerCase().includes(artist.name.toLowerCase()))
+                  );
+                  if (match) onSelectSong(match);
+                }
+              }}
             >
               <div className='relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-pink-500 shadow-xl transition duration-300'>
                 <img

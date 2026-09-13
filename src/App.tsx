@@ -4,7 +4,7 @@ import { HomeView } from './components/HomeView';
 import { SongDetail } from './components/SongDetail';
 import { PlayerBar } from './components/PlayerBar';
 import { LogoLoader } from './components/LogoLoader';
-import { sampleSongs, sampleMovies, sampleArtists, Song } from './data';
+import { sampleSongs, Song, MovieAlbum, Artist } from './data';
 import { scrapedCatalog } from './scrapedData';
 import { fetchSongLyrics, recordSongView } from './services/api';
 import { Heart } from 'lucide-react';
@@ -21,6 +21,76 @@ export function App() {
     });
     return Array.from(map.values());
   }, []);
+
+  // Compute live Movie Albums matching actual songs by Movie Name and Year
+  const dynamicMovieAlbums = useMemo<MovieAlbum[]>(() => {
+    const movieMap = new Map<string, MovieAlbum>();
+    allAvailableSongs.forEach((s) => {
+      const movieName = s.movie?.trim();
+      if (!movieName) return;
+      const key = `${movieName.toLowerCase()}_${s.year || 2024}`;
+      if (!movieMap.has(key)) {
+        movieMap.set(key, {
+          id: movieName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          title: movieName,
+          year: s.year || 2024,
+          posterUrl: s.coverUrl,
+          trackCount: 1,
+        });
+      } else {
+        const item = movieMap.get(key)!;
+        item.trackCount += 1;
+        // Prefer higher quality non-default artwork if available
+        if (!item.posterUrl && s.coverUrl) {
+          item.posterUrl = s.coverUrl;
+        }
+      }
+    });
+    // Sort movies with most tracks first, or latest year
+    return Array.from(movieMap.values()).sort((a, b) => b.trackCount - a.trackCount || b.year - a.year);
+  }, [allAvailableSongs]);
+
+  // Compute live Artists & Composers matching actual songs
+  const dynamicArtists = useMemo<Artist[]>(() => {
+    const artistMap = new Map<string, { artist: Artist; songCount: number }>();
+    
+    // Curated high-res portraits for top Tamil music legends
+    const knownImages: Record<string, string> = {
+      'anirudh': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop',
+      'a. r. rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
+      'ar rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
+      'yuvan shankar raja': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=400&auto=format&fit=crop',
+      'harris jayaraj': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=400&auto=format&fit=crop',
+      'sai abhyankkar': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=400&auto=format&fit=crop',
+      'g. v. prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
+      'g.v. prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
+    };
+
+    allAvailableSongs.forEach((s) => {
+      const comp = s.composer?.trim();
+      if (comp) {
+        const key = comp.toLowerCase();
+        const existing = artistMap.get(key);
+        if (existing) {
+          existing.songCount += 1;
+        } else {
+          artistMap.set(key, {
+            artist: {
+              id: key.replace(/[^a-z0-9]+/g, '-'),
+              name: comp,
+              role: 'Music Director',
+              imageUrl: knownImages[key] || s.coverUrl,
+            },
+            songCount: 1,
+          });
+        }
+      }
+    });
+
+    return Array.from(artistMap.values())
+      .sort((a, b) => b.songCount - a.songCount)
+      .map((item) => item.artist);
+  }, [allAvailableSongs]);
 
   const [selectedSong, setSelectedSong] = useState<Song | null>(() => {
     // Initial deep-link check from URL path on first load / refresh
@@ -170,9 +240,19 @@ export function App() {
             )}
             <HomeView
               songs={filteredSongs}
-              movies={sampleMovies}
-              artists={sampleArtists}
+              movies={dynamicMovieAlbums}
+              artists={dynamicArtists}
               onSelectSong={handleSelectSong}
+              onSelectMovie={(movie) => {
+                // Instantly filter by movie name so all its album tracks show
+                setSearchQuery(movie.title);
+                window.scrollTo({ top: 300, behavior: 'smooth' });
+              }}
+              onSelectArtist={(artist) => {
+                // Instantly filter by composer/artist name so all their songs show
+                setSearchQuery(artist.name);
+                window.scrollTo({ top: 300, behavior: 'smooth' });
+              }}
             />
           </div>
         )}

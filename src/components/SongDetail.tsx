@@ -280,6 +280,96 @@ export const SongDetail: React.FC<SongDetailProps> = ({
               </div>
             </div>
 
+            {/* Other Tracks from Same Movie Album */}
+            {(() => {
+              const movieTracks = allSongs.filter(
+                (s) => s.movie.toLowerCase() === song.movie.toLowerCase() && s.id !== song.id
+              );
+              if (movieTracks.length === 0) return null;
+              return (
+                <div className='p-5 rounded-3xl bg-[#111319]/80 border border-white/10 backdrop-blur-xl shadow-2xl space-y-3'>
+                  <div className='flex items-center justify-between'>
+                    <h3 className='text-xs uppercase font-extrabold tracking-wider text-gray-400 flex items-center gap-1.5'>
+                      <Music className='w-3.5 h-3.5 text-rose-500' /> More from {song.movie}
+                    </h3>
+                    <span className='text-[11px] text-gray-400'>{movieTracks.length} more track{movieTracks.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <div className='space-y-2'>
+                    {movieTracks.map((trk) => (
+                      <div
+                        key={trk.id}
+                        onClick={() => onSelectSong(trk)}
+                        className='flex items-center gap-3 p-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/5 transition cursor-pointer group'
+                      >
+                        <img
+                          src={trk.coverUrl}
+                          alt={trk.title}
+                          className='w-10 h-10 rounded-lg object-cover group-hover:scale-105 transition'
+                        />
+                        <div className='min-w-0 flex-1'>
+                          <div className='font-bold text-xs text-white group-hover:text-pink-400 transition truncate'>
+                            {trk.title}
+                          </div>
+                          <div className='text-[10px] text-gray-400 truncate'>
+                            {trk.singers.join(', ')}
+                          </div>
+                        </div>
+                        <span className='text-[10px] text-pink-400 font-bold opacity-0 group-hover:opacity-100 transition'>
+                          Lyrics →
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Other Hits from the Same Composer */}
+            {(() => {
+              const composerHits = allSongs.filter(
+                (s) =>
+                  s.composer.toLowerCase() === song.composer.toLowerCase() &&
+                  s.movie.toLowerCase() !== song.movie.toLowerCase() &&
+                  s.id !== song.id
+              ).slice(0, 4);
+              if (composerHits.length === 0) return null;
+              return (
+                <div className='p-5 rounded-3xl bg-[#111319]/80 border border-white/10 backdrop-blur-xl shadow-2xl space-y-3'>
+                  <div className='flex items-center justify-between'>
+                    <h3 className='text-xs uppercase font-extrabold tracking-wider text-gray-400 flex items-center gap-1.5'>
+                      <Users className='w-3.5 h-3.5 text-pink-500' /> Hits by {song.composer}
+                    </h3>
+                  </div>
+                  <div className='space-y-2'>
+                    {composerHits.map((trk) => (
+                      <div
+                        key={trk.id}
+                        onClick={() => onSelectSong(trk)}
+                        className='flex items-center gap-3 p-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/5 transition cursor-pointer group'
+                      >
+                        <img
+                          src={trk.coverUrl}
+                          alt={trk.title}
+                          className='w-10 h-10 rounded-lg object-cover group-hover:scale-105 transition'
+                        />
+                        <div className='min-w-0 flex-1'>
+                          <div className='font-bold text-xs text-white group-hover:text-pink-400 transition truncate'>
+                            {trk.title}
+                          </div>
+                          <div className='text-[10px] text-gray-400 truncate'>
+                            {trk.movie} ({trk.year})
+                          </div>
+                        </div>
+                        <span className='text-[10px] text-pink-400 font-bold opacity-0 group-hover:opacity-100 transition'>
+                          Lyrics →
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Official YouTube Lyrical Video Player if available */}
             {song.youtubeId && (
               <div className='p-4 rounded-3xl bg-[#111319]/80 border border-white/10 backdrop-blur-xl shadow-2xl overflow-hidden'>
