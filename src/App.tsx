@@ -6,7 +6,17 @@ import { SongDetail } from './components/SongDetail';
 import { MovieDetail } from './components/MovieDetail';
 import { ArtistDetail } from './components/ArtistDetail';
 import { LogoLoader } from './components/LogoLoader';
-import { sampleSongs, Song, MovieAlbum, Artist, slugifyMovieTitle, getMovieUrl, slugifyArtistName, getArtistUrl } from './data';
+import {
+  sampleSongs,
+  Song,
+  MovieAlbum,
+  Artist,
+  slugifyMovieTitle,
+  getMovieUrl,
+  slugifyArtistName,
+  getArtistUrl,
+  getArtistPhoto,
+} from './data';
 import { scrapedCatalog } from './scrapedData';
 import { 
   fetchSongLyrics, 
@@ -67,25 +77,6 @@ export function App() {
   const dynamicArtists = useMemo<Artist[]>(() => {
     const artistMap = new Map<string, { artist: Artist; songCount: number }>();
     
-    // Curated high-res portraits for top Tamil music legends
-    const knownImages: Record<string, string> = {
-      'anirudh': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop',
-      'anirudh ravichander': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop',
-      'a. r. rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
-      'ar rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
-      'yuvan shankar raja': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=400&auto=format&fit=crop',
-      'harris jayaraj': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=400&auto=format&fit=crop',
-      'sai abhyankkar': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=400&auto=format&fit=crop',
-      'g. v. prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
-      'g.v. prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
-      'gv prakash kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
-      'ilaiyaraaja': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400&auto=format&fit=crop',
-      'ilayaraja': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400&auto=format&fit=crop',
-      'thalapathy vijay': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
-      's. p. balasubrahmanyam': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=400&auto=format&fit=crop',
-      'sid sriram': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=400&auto=format&fit=crop',
-    };
-
     allAvailableSongs.forEach((s) => {
       // 1. Composer
       const comp = s.composer?.trim();
@@ -100,7 +91,7 @@ export function App() {
               id: slugifyArtistName(comp),
               name: comp,
               role: 'Music Director',
-              imageUrl: knownImages[key] || s.coverUrl,
+              imageUrl: getArtistPhoto(comp),
             },
             songCount: 1,
           });
@@ -121,7 +112,7 @@ export function App() {
                 id: slugifyArtistName(sing),
                 name: sing,
                 role: 'Playback Singer',
-                imageUrl: knownImages[key] || s.coverUrl,
+                imageUrl: getArtistPhoto(sing),
               },
               songCount: 1,
             });
@@ -184,7 +175,7 @@ export function App() {
         id: artistSlug,
         name: artistSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         role: 'Music Director & Artist',
-        imageUrl: '',
+        imageUrl: getArtistPhoto(artistSlug),
       };
     }
     return null;
@@ -412,7 +403,7 @@ export function App() {
             id: artistSlug,
             name: artistSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
             role: 'Music Director & Artist',
-            imageUrl: '',
+            imageUrl: getArtistPhoto(artistSlug),
           }
         );
         return;
@@ -525,12 +516,19 @@ export function App() {
   };
 
   const handleSelectArtist = (artist: Artist) => {
+    const verifiedPhoto = artist.imageUrl && !artist.imageUrl.includes('-art.jpg') && !artist.imageUrl.includes('mzstatic')
+      ? artist.imageUrl
+      : getArtistPhoto(artist.name || artist.id);
+    const enrichedArtist: Artist = {
+      ...artist,
+      imageUrl: verifiedPhoto,
+    };
     setSelectedSong(null);
     setSelectedMovie(null);
-    setSelectedArtist(artist);
-    const targetPath = getArtistUrl(artist);
+    setSelectedArtist(enrichedArtist);
+    const targetPath = getArtistUrl(enrichedArtist);
     if (window.location.pathname !== targetPath) {
-      window.history.pushState({ type: 'artist', artist }, '', targetPath);
+      window.history.pushState({ type: 'artist', artist: enrichedArtist }, '', targetPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

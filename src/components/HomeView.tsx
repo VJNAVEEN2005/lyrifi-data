@@ -159,6 +159,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   src={artist.imageUrl}
                   alt={artist.name}
                   className='w-full h-full object-cover group-hover:scale-110 transition duration-500'
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/artists/default-artist.svg';
+                  }}
                 />
               </div>
               <div>

@@ -17,7 +17,16 @@ import {
   PlayCircle,
   ChevronRight
 } from 'lucide-react';
-import { Song, MovieAlbum, Artist, slugifyMovieTitle, slugifyArtistName } from '../data';
+import {
+  Song,
+  slugifyMovieTitle,
+  getMovieUrl,
+  MovieAlbum,
+  Artist,
+  slugifyArtistName,
+  getArtistUrl,
+  getArtistPhoto,
+} from '../data';
 import { AdBanner } from './AdBanner';
 
 interface SongDetailProps {
@@ -260,7 +269,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                           id: slugifyArtistName(song.singers[0]),
                           name: song.singers[0],
                           role: 'Playback Singer',
-                          imageUrl: song.coverUrl,
+                          imageUrl: getArtistPhoto(song.singers[0]),
                         })
                       }
                       className='hover:text-pink-400 hover:underline transition'
@@ -301,7 +310,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                           id: slugifyArtistName(song.composer),
                           name: song.composer,
                           role: 'Music Director',
-                          imageUrl: song.coverUrl,
+                          imageUrl: getArtistPhoto(song.composer),
                         })
                       }
                       className='text-gray-300 hover:text-pink-400 hover:underline font-semibold transition'
@@ -404,7 +413,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                           id: slugifyArtistName(song.composer),
                           name: song.composer,
                           role: 'Music Director',
-                          imageUrl: song.coverUrl,
+                          imageUrl: getArtistPhoto(song.composer),
                         })
                       }
                       className='font-bold text-white text-right hover:text-pink-400 hover:underline transition'
@@ -427,7 +436,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                                 id: slugifyArtistName(singer),
                                 name: singer,
                                 role: 'Playback Singer',
-                                imageUrl: song.coverUrl,
+                                imageUrl: getArtistPhoto(singer),
                               })
                             }
                             className='hover:text-pink-400 hover:underline transition'

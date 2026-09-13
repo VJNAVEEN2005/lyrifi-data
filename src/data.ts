@@ -70,6 +70,83 @@ export const getArtistUrl = (artist: { name: string }): string => {
   return `/artist/${slug}`;
 };
 
+export const KNOWN_ARTIST_PHOTOS: Record<string, string> = {
+  'anirudh': '/artists/anirudh-ravichander.jpg',
+  'anirudh-ravichander': '/artists/anirudh-ravichander.jpg',
+  'ar-rahman': '/artists/a-r-rahman.jpg',
+  'a-r-rahman': '/artists/a-r-rahman.jpg',
+  'ilaiyaraaja': '/artists/ilaiyaraaja.jpg',
+  'ilayaraja': '/artists/ilaiyaraaja.jpg',
+  'yuvan': '/artists/yuvan-shankar-raja.jpg',
+  'yuvan-shankar-raja': '/artists/yuvan-shankar-raja.jpg',
+  'harris': '/artists/harris-jayaraj.jpg',
+  'harris-jayaraj': '/artists/harris-jayaraj.jpg',
+  'spb': '/artists/s-p-balasubrahmanyam.jpg',
+  's-p-balasubrahmanyam': '/artists/s-p-balasubrahmanyam.jpg',
+  'sp-balasubrahmanyam': '/artists/s-p-balasubrahmanyam.jpg',
+  'sid-sriram': '/artists/sid-sriram.jpg',
+  'vijay': '/artists/thalapathy-vijay.jpg',
+  'thalapathy-vijay': '/artists/thalapathy-vijay.jpg',
+  'actor-vijay': '/artists/thalapathy-vijay.jpg',
+  'gv-prakash': '/artists/g-v-prakash-kumar.jpg',
+  'gv-prakash-kumar': '/artists/g-v-prakash-kumar.jpg',
+  'g-v-prakash-kumar': '/artists/g-v-prakash-kumar.jpg',
+  'santhosh-narayanan': '/artists/santhosh-narayanan.jpg',
+  'd-imman': '/artists/d-imman.jpg',
+  'imman': '/artists/d-imman.jpg',
+  'devi-sri-prasad': '/artists/devi-sri-prasad.jpg',
+  'dsp': '/artists/devi-sri-prasad.jpg',
+  'shankar-mahadevan': '/artists/shankar-mahadevan.jpg',
+  'hariharan': '/artists/hariharan.jpg',
+  'udit-narayan': '/artists/udit-narayan.jpg',
+  'vijay-antony': '/artists/vijay-antony.jpg',
+  'hiphop-tamizha': '/artists/hiphop-tamizha.jpg',
+  'hiphop-tamizha-adhi': '/artists/hiphop-tamizha.jpg',
+  'mano': '/artists/mano.jpg',
+  'haricharan': '/artists/haricharan.jpg',
+  'shreya-ghoshal': '/artists/shreya-ghoshal.jpg',
+  'k-s-chithra': '/artists/k-s-chithra.jpg',
+  'ks-chithra': '/artists/k-s-chithra.jpg',
+  'chithra': '/artists/k-s-chithra.jpg',
+  'jonita-gandhi': '/artists/jonita-gandhi.jpg',
+  'chinmayi': '/artists/chinmayi.jpg',
+  'chinmayi-sripaada': '/artists/chinmayi.jpg',
+  'sujatha-mohan': '/artists/sujatha-mohan.jpg',
+  'sujatha': '/artists/sujatha-mohan.jpg',
+  'anuradha-sriram': '/artists/anuradha-sriram.jpg',
+  'andrea-jeremiah': '/artists/andrea-jeremiah.jpg',
+  'andrea': '/artists/andrea-jeremiah.jpg',
+  'dhanush': '/artists/dhanush.jpg',
+  'silambarasan': '/artists/silambarasan-tr.jpg',
+  'silambarasan-tr': '/artists/silambarasan-tr.jpg',
+  'str': '/artists/silambarasan-tr.jpg',
+  'kamal-haasan': '/artists/kamal-haasan.jpg',
+  'kamal': '/artists/kamal-haasan.jpg',
+  'rajinikanth': '/artists/rajinikanth.jpg',
+  'vairamuthu': '/artists/vairamuthu.jpg',
+  's-p-b-charan': '/artists/s-p-b-charan.jpg',
+  'spb-charan': '/artists/s-p-b-charan.jpg',
+};
+
+/**
+ * Returns original photo for an artist, or clean avatar placeholder.
+ * NEVER returns song or album cover photo!
+ */
+export const getArtistPhoto = (nameOrSlug: string): string => {
+  if (!nameOrSlug) return '/artists/default-artist.svg';
+  const slug = slugifyArtistName(nameOrSlug);
+  if (KNOWN_ARTIST_PHOTOS[slug]) {
+    return KNOWN_ARTIST_PHOTOS[slug];
+  }
+  const clean = slug.replace(/[^a-z0-9]/g, '');
+  for (const [key, path] of Object.entries(KNOWN_ARTIST_PHOTOS)) {
+    if (clean === key.replace(/[^a-z0-9]/g, '')) {
+      return path;
+    }
+  }
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(nameOrSlug)}&background=18181b&color=f43f5e&size=512&bold=true`;
+};
+
 export const sampleSongs: Song[] = [
   {
     "id": "oorum-blood",
@@ -284,48 +361,54 @@ export const sampleArtists: Artist[] = [
     "id": "anirudh",
     "name": "Anirudh Ravichander",
     "role": "Music Director",
-    "imageUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/anirudh-ravichander.jpg"
   },
   {
     "id": "ar-rahman",
     "name": "A.R. Rahman",
     "role": "Music Director",
-    "imageUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/a-r-rahman.jpg"
   },
   {
     "id": "ilaiyaraaja",
     "name": "Ilaiyaraaja",
     "role": "Isaignani",
-    "imageUrl": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/ilaiyaraaja.jpg"
   },
   {
     "id": "yuvan",
     "name": "Yuvan Shankar Raja",
     "role": "Music Director",
-    "imageUrl": "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/yuvan-shankar-raja.jpg"
   },
   {
     "id": "harris",
     "name": "Harris Jayaraj",
     "role": "Music Director",
-    "imageUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/harris-jayaraj.jpg"
   },
   {
     "id": "spb",
     "name": "S.P. Balasubrahmanyam",
     "role": "Legend Singer",
-    "imageUrl": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/s-p-balasubrahmanyam.jpg"
   },
   {
     "id": "sid-sriram",
     "name": "Sid Sriram",
     "role": "Playback Singer",
-    "imageUrl": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/sid-sriram.jpg"
+  },
+  {
+    "id": "thalapathy-vijay",
+    "name": "Thalapathy Vijay",
+    "role": "Playback Singer & Actor",
+    "imageUrl": "/artists/thalapathy-vijay.jpg"
   },
   {
     "id": "vairamuthu",
     "name": "Vairamuthu",
     "role": "Lyricist",
-    "imageUrl": "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?q=80&w=400&auto=format&fit=crop"
+    "imageUrl": "/artists/vairamuthu.jpg"
   }
 ];

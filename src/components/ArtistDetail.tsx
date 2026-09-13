@@ -12,7 +12,7 @@ import {
   Mic2,
   Film
 } from 'lucide-react';
-import { Song, MovieAlbum, Artist, getArtistUrl, slugifyArtistName, slugifyMovieTitle } from '../data';
+import { Song, MovieAlbum, Artist, getArtistUrl, slugifyArtistName, slugifyMovieTitle, getArtistPhoto } from '../data';
 import { fetchArtistDetails, ArtistDetails } from '../services/api';
 
 interface ArtistDetailProps {
@@ -213,9 +213,12 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
             {/* Circular Artist Avatar */}
             <div className='relative w-36 h-36 sm:w-48 sm:h-48 rounded-full overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] shrink-0 border-4 border-white/20 group'>
               <img
-                src={backendArtist?.imageUrl || artist.imageUrl}
+                src={backendArtist?.imageUrl || artist.imageUrl || getArtistPhoto(artist.name)}
                 alt={artist.name}
                 className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/artists/default-artist.svg';
+                }}
               />
               <div className='absolute inset-0 rounded-full ring-2 ring-pink-500/40 ring-offset-2 ring-offset-black' />
             </div>

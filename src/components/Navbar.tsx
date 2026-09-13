@@ -294,6 +294,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                             src={artist.imageUrl}
                             alt={artist.name}
                             className='w-9 h-9 rounded-full object-cover shrink-0 border border-white/15'
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/artists/default-artist.svg';
+                            }}
                           />
                           <div className='min-w-0 flex-1'>
                             <div className='text-sm font-bold text-white group-hover:text-rose-400 transition truncate'>

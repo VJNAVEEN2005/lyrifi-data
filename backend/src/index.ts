@@ -410,19 +410,69 @@ app.get('/api/artists/:slug', (c) => {
     }
   });
 
-  // Curated high-res portraits for top Tamil music legends
+  // Curated high-res original portraits for top Tamil music legends & playback singers
   const knownPortraits: Record<string, string> = {
-    'anirudh': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
-    'anirudh-ravichander': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
-    'ar-rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=600&auto=format&fit=crop',
-    'a-r-rahman': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=600&auto=format&fit=crop',
-    'yuvan-shankar-raja': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=600&auto=format&fit=crop',
-    'harris-jayaraj': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&auto=format&fit=crop',
-    'gv-prakash-kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop',
-    'g-v-prakash-kumar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop',
+    'anirudh': '/artists/anirudh-ravichander.jpg',
+    'anirudh-ravichander': '/artists/anirudh-ravichander.jpg',
+    'ar-rahman': '/artists/a-r-rahman.jpg',
+    'a-r-rahman': '/artists/a-r-rahman.jpg',
+    'ilaiyaraaja': '/artists/ilaiyaraaja.jpg',
+    'ilayaraja': '/artists/ilaiyaraaja.jpg',
+    'yuvan': '/artists/yuvan-shankar-raja.jpg',
+    'yuvan-shankar-raja': '/artists/yuvan-shankar-raja.jpg',
+    'harris': '/artists/harris-jayaraj.jpg',
+    'harris-jayaraj': '/artists/harris-jayaraj.jpg',
+    'spb': '/artists/s-p-balasubrahmanyam.jpg',
+    's-p-balasubrahmanyam': '/artists/s-p-balasubrahmanyam.jpg',
+    'sp-balasubrahmanyam': '/artists/s-p-balasubrahmanyam.jpg',
+    'sid-sriram': '/artists/sid-sriram.jpg',
+    'vijay': '/artists/thalapathy-vijay.jpg',
+    'thalapathy-vijay': '/artists/thalapathy-vijay.jpg',
+    'actor-vijay': '/artists/thalapathy-vijay.jpg',
+    'gv-prakash': '/artists/g-v-prakash-kumar.jpg',
+    'gv-prakash-kumar': '/artists/g-v-prakash-kumar.jpg',
+    'g-v-prakash-kumar': '/artists/g-v-prakash-kumar.jpg',
+    'santhosh-narayanan': '/artists/santhosh-narayanan.jpg',
+    'd-imman': '/artists/d-imman.jpg',
+    'imman': '/artists/d-imman.jpg',
+    'devi-sri-prasad': '/artists/devi-sri-prasad.jpg',
+    'dsp': '/artists/devi-sri-prasad.jpg',
+    'shankar-mahadevan': '/artists/shankar-mahadevan.jpg',
+    'hariharan': '/artists/hariharan.jpg',
+    'udit-narayan': '/artists/udit-narayan.jpg',
+    'vijay-antony': '/artists/vijay-antony.jpg',
+    'hiphop-tamizha': '/artists/hiphop-tamizha.jpg',
+    'hiphop-tamizha-adhi': '/artists/hiphop-tamizha.jpg',
+    'mano': '/artists/mano.jpg',
+    'haricharan': '/artists/haricharan.jpg',
+    'shreya-ghoshal': '/artists/shreya-ghoshal.jpg',
+    'k-s-chithra': '/artists/k-s-chithra.jpg',
+    'ks-chithra': '/artists/k-s-chithra.jpg',
+    'chithra': '/artists/k-s-chithra.jpg',
+    'jonita-gandhi': '/artists/jonita-gandhi.jpg',
+    'chinmayi': '/artists/chinmayi.jpg',
+    'chinmayi-sripaada': '/artists/chinmayi.jpg',
+    'sujatha-mohan': '/artists/sujatha-mohan.jpg',
+    'sujatha': '/artists/sujatha-mohan.jpg',
+    'anuradha-sriram': '/artists/anuradha-sriram.jpg',
+    'andrea-jeremiah': '/artists/andrea-jeremiah.jpg',
+    'andrea': '/artists/andrea-jeremiah.jpg',
+    'dhanush': '/artists/dhanush.jpg',
+    'silambarasan': '/artists/silambarasan-tr.jpg',
+    'silambarasan-tr': '/artists/silambarasan-tr.jpg',
+    'str': '/artists/silambarasan-tr.jpg',
+    'kamal-haasan': '/artists/kamal-haasan.jpg',
+    'kamal': '/artists/kamal-haasan.jpg',
+    'rajinikanth': '/artists/rajinikanth.jpg',
+    'vairamuthu': '/artists/vairamuthu.jpg',
+    's-p-b-charan': '/artists/s-p-b-charan.jpg',
+    'spb-charan': '/artists/s-p-b-charan.jpg',
   };
 
-  const imageUrl = knownPortraits[normSlug] || artistSongs[0].coverUrl;
+  const imageUrl =
+    knownPortraits[normSlug] ||
+    `/artists/${normSlug}.jpg` ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(artistName)}&background=18181b&color=f43f5e&size=512&bold=true`;
 
   c.header('Cache-Control', 'public, max-age=1800, s-maxage=1800');
 
