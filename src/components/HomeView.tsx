@@ -20,6 +20,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectMovie,
   onSelectArtist,
 }) => {
+  const displaySongs = songs.slice(0, 20);
+  const displayMovies = movies.slice(0, 20);
+  const displayArtists = artists.slice(0, 20);
   return (
     <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12'>
       
@@ -43,7 +46,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         {/* 2-Column Song List Grid */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4'>
-          {songs.map((song, idx) => (
+          {displaySongs.map((song, idx) => (
             <div
               key={song.id}
               onClick={() => onSelectSong(song)}
@@ -92,7 +95,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4'>
-          {movies.map((movie) => (
+          {displayMovies.map((movie) => (
             <div
               key={movie.id}
               className='group cursor-pointer space-y-2.5'
@@ -137,7 +140,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className='grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 text-center'>
-          {artists.map((artist) => (
+          {displayArtists.map((artist) => (
             <div
               key={artist.id}
               className='group cursor-pointer space-y-2 flex flex-col items-center'
