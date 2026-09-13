@@ -64,13 +64,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
               >
                 View Lyrics <ChevronRight className='w-4 h-4' />
               </button>
-
-              <button
-                onClick={() => onSelectSong(heroSong)}
-                className='px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-sm backdrop-blur-md transition active:scale-95 flex items-center gap-2'
-              >
-                <Play className='w-4 h-4 fill-white' /> Play Preview
-              </button>
             </div>
           </div>
 

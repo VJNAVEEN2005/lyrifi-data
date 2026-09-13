@@ -3,7 +3,6 @@ import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { SearchView } from './components/SearchView';
 import { SongDetail } from './components/SongDetail';
-import { PlayerBar } from './components/PlayerBar';
 import { LogoLoader } from './components/LogoLoader';
 import { sampleSongs, Song, MovieAlbum, Artist } from './data';
 import { scrapedCatalog } from './scrapedData';
@@ -245,7 +244,7 @@ export function App() {
       />
 
       {/* Main View Router */}
-      <main className='flex-1 pb-24'>
+      <main className='flex-1 pb-12'>
         {isDeepSearching ? (
           <div className='min-h-[70vh] flex items-center justify-center'>
             <LogoLoader message={deepSearchMessage} />
@@ -302,12 +301,6 @@ export function App() {
           </div>
         )}
       </main>
-
-      {/* Bottom Sticky Player Bar */}
-      <PlayerBar
-        song={currentPlayingSong}
-        onOpenSong={(song) => handleSelectSong(song)}
-      />
 
       {/* Footer (Genius / Clean style with legal & sitemap for Google crawl) */}
       <footer className='border-t border-white/10 bg-[#06070a] py-8 text-xs text-gray-400'>
