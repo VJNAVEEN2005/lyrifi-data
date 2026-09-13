@@ -353,6 +353,25 @@ export function App() {
     }
   }, [selectedArtist, dynamicArtists]);
 
+  // Synchronize Browser Tab Name & Title dynamically
+  useEffect(() => {
+    if (selectedSong) {
+      document.title = `${selectedSong.title} Lyrics - ${selectedSong.movie} | Lyrifi`;
+    } else if (selectedMovie) {
+      document.title = `${selectedMovie.title} (${selectedMovie.year || 2024}) Album & Lyrics | Lyrifi`;
+    } else if (selectedArtist) {
+      document.title = `${selectedArtist.name} - Songs & Discography | Lyrifi`;
+    } else if (activeTab === 'search' && searchQuery) {
+      document.title = `Search: "${searchQuery}" | Lyrifi`;
+    } else if (activeTab === 'movies') {
+      document.title = 'Tamil Movie Soundtracks & Albums | Lyrifi';
+    } else if (activeTab === 'artists') {
+      document.title = 'Popular Music Directors & Playback Singers | Lyrifi';
+    } else {
+      document.title = 'Lyrifi - Tamil Songs Lyrics | தமிழ் & Tanglish';
+    }
+  }, [selectedSong, selectedMovie, selectedArtist, activeTab, searchQuery]);
+
   // Handle browser Back / Forward buttons (popstate)
   useEffect(() => {
     const handlePopState = () => {
