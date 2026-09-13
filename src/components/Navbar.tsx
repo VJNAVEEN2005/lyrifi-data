@@ -133,13 +133,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Top-Right Search Input with Live Recommendations Dropdown */}
-        <div ref={containerRef} className='relative flex-1 max-w-md'>
-          <div className='relative flex items-center'>
-            <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
-            <input
-              type='text'
-              placeholder='Search songs, movies, artists...'
+        {/* Top-Right Search Input with Live Recommendations Dropdown (Hidden on dedicated Search Page) */}
+        {activeTab !== 'search' ? (
+          <div ref={containerRef} className='relative flex-1 max-w-md'>
+            <div className='relative flex items-center'>
+              <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
+              <input
+                type='text'
+                placeholder='Search songs, movies, artists...'
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -150,6 +151,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && inputValue.trim()) {
+                  setShowDropdown(false);
+                  (e.target as HTMLInputElement).blur();
                   handleTriggerSearch(inputValue);
                 } else if (e.key === 'Escape') {
                   setShowDropdown(false);
@@ -336,6 +339,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
         </div>
+        ) : null}
 
         {/* Right Badge */}
         <div className='hidden lg:flex items-center gap-2 shrink-0'>

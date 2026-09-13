@@ -53,9 +53,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [isDeepSearchModalOpen, setIsDeepSearchModalOpen] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync local input if external searchQuery changes (e.g. via URL or back button)
+  // Sync local input if external searchQuery changes (e.g. via URL or back button) and close dropdown
   useEffect(() => {
     setLocalInput(searchQuery);
+    setShowDropdown(false);
   }, [searchQuery]);
 
   // Close recommendations dropdown on outside click
@@ -201,6 +202,8 @@ export const SearchView: React.FC<SearchViewProps> = ({
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && localInput.trim()) {
+                  setShowDropdown(false);
+                  (e.target as HTMLInputElement).blur();
                   handleCommitSearch(localInput);
                 } else if (e.key === 'Escape') {
                   setShowDropdown(false);
