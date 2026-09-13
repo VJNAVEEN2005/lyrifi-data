@@ -1,7 +1,6 @@
 import React from 'react';
 import { Play, Sparkles, TrendingUp, ChevronRight, Music2, Eye, Disc3, Mic2 } from 'lucide-react';
 import { Song, MovieAlbum, Artist } from '../data';
-import { AdBanner } from './AdBanner';
 
 interface HomeViewProps {
   songs: Song[];
@@ -26,10 +25,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12'>
       
-      {/* 1. TOP SPONSOR BANNER (Leaderboard Ad) */}
-      <AdBanner type='leaderboard' />
-
-      {/* 2. POPULAR TAMIL SONGS (Apple Music / Genius Style Grid) */}
+      {/* 1. POPULAR TAMIL SONGS (Apple Music / Genius Style Grid) */}
       <section className='space-y-6'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
@@ -136,10 +132,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* SPONSORED MID-PAGE AD BANNER */}
-      <AdBanner type='inline' />
-
-      {/* 4. POPULAR ARTISTS & COMPOSERS (Circular Avatars) */}
+      {/* 2. POPULAR ARTISTS & COMPOSERS (Circular Avatars) */}
       <section id='artists' className='space-y-5 pt-2 scroll-mt-20'>
         <div className='flex items-center justify-between'>
           <h2 className='text-2xl font-black tracking-tight text-white flex items-center gap-2'>

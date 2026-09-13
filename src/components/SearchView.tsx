@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { Song, MovieAlbum, Artist, normalizeArtistSlug } from '../data';
 import { BackendSearchResults } from '../services/api';
-import { AdBanner } from './AdBanner';
 import { DeepSearchModal } from './DeepSearchModal';
 
 interface SearchViewProps {
@@ -775,8 +774,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
               ))}
             </div>
           </div>
-
-          <AdBanner type='leaderboard' />
         </div>
       )}
 

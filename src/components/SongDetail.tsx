@@ -29,7 +29,6 @@ import {
   getArtistUrl,
   getArtistPhoto,
 } from '../data';
-import { AdBanner } from './AdBanner';
 import { SongAccuracyModal } from './SongAccuracyModal';
 
 interface SongDetailProps {
@@ -381,18 +380,6 @@ export const SongDetail: React.FC<SongDetailProps> = ({
 
                 return (
                   <React.Fragment key={index}>
-                    {/* Native In-Lyrics Ad Banner after line 6 */}
-                    {index === 6 && (
-                      <div className='py-4 max-w-md mx-auto'>
-                        <AdBanner type='in-lyrics' />
-                      </div>
-                    )}
-                    {/* Secondary Mid-Lyrics Ad Banner after line 24 for longer songs */}
-                    {index === 24 && currentLyrics.length > 32 && (
-                      <div className='py-4 max-w-md mx-auto'>
-                        <AdBanner type='in-lyrics' />
-                      </div>
-                    )}
                     {parsed.isHeading ? (
                       <p className='text-rose-400 font-extrabold text-sm sm:text-base uppercase tracking-widest pt-4 pb-1 select-text drop-shadow-[0_2px_8px_rgba(244,63,94,0.5)]'>
                         {parsed.text}
@@ -625,13 +612,6 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                 </div>
               </div>
             )}
-
-            <AdBanner type='sidebar' />
-          </div>
-
-          {/* MOBILE ONLY SPONSORED BANNER */}
-          <div className='block xl:hidden col-span-1 pt-4 pb-2'>
-            <AdBanner type='inline' />
           </div>
 
         </div>
