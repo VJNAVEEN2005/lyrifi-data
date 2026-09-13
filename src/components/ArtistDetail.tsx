@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Song, MovieAlbum, Artist, getArtistUrl, slugifyArtistName, normalizeArtistSlug, slugifyMovieTitle, getArtistPhoto } from '../data';
 import { fetchArtistDetails, ArtistDetails } from '../services/api';
+import { AdBanner } from './AdBanner';
 
 interface ArtistDetailProps {
   artist: Artist;
@@ -417,6 +418,9 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
             </div>
           )}
         </section>
+
+        {/* SPONSORED BANNER / AD */}
+        <AdBanner type='leaderboard' />
 
         {/* DEEP SEARCH BANNER */}
         <div className='p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-pink-900/30 via-purple-900/20 to-rose-900/30 border border-pink-500/20 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-4'>

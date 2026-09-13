@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Song, MovieAlbum, slugifyMovieTitle, getMovieUrl } from '../data';
 import { fetchMovieAlbumDetails, MovieAlbumDetails } from '../services/api';
+import { AdBanner } from './AdBanner';
 
 interface MovieDetailProps {
   movie: MovieAlbum;
@@ -236,6 +237,9 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
             </div>
           </div>
         </div>
+
+        {/* SPONSORED BANNER */}
+        <AdBanner type='leaderboard' />
 
         {/* TRACKLIST SECTION */}
         <div className='space-y-4'>

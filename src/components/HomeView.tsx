@@ -136,6 +136,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
+      {/* SPONSORED MID-PAGE AD BANNER */}
+      <AdBanner type='inline' />
+
       {/* 4. POPULAR ARTISTS & COMPOSERS (Circular Avatars) */}
       <section id='artists' className='space-y-5 pt-2 scroll-mt-20'>
         <div className='flex items-center justify-between'>
