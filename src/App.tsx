@@ -240,6 +240,7 @@ export function App() {
   const [isLoadingSong, setIsLoadingSong] = useState<boolean>(false);
   const [isDeepSearching, setIsDeepSearching] = useState<boolean>(false);
   const [deepSearchMessage, setDeepSearchMessage] = useState<string>('Searching verified Tamil lyrics...');
+  const [candidateMovies, setCandidateMovies] = useState<MovieAlbum[]>([]);
 
   // Animate browser tab favicon with pulsing equalizer bars during any loading state
   const isAnyLoading = isLoadingSong || isDeepSearching || isSearchingBackend;
@@ -307,8 +308,13 @@ export function App() {
   }, []);
 
   // Handle on-demand deep search for movie album or specific song
-  const handleDeepSearch = async (data: { query: string; type: 'movie' | 'song' }) => {
-    const { query, type } = data;
+  const handleDeepSearch = async (data: {
+    query: string;
+    type: 'movie' | 'song';
+    targetMovieUrl?: string;
+    year?: number;
+  }) => {
+    const { query, type, targetMovieUrl, year } = data;
     if (!query.trim() || isDeepSearching) return;
     setIsDeepSearching(true);
     setDeepSearchMessage(
@@ -318,27 +324,45 @@ export function App() {
     );
     
     try {
-      const response = await triggerDeepScrape(query.trim(), type);
+      const response = await triggerDeepScrape(query.trim(), type, targetMovieUrl, year);
       if (response && response.success) {
         setIsDeepSearching(false);
+        if (response.type === 'movie-selection' && response.movies && response.movies.length > 0) {
+          // Multiple matching candidate movies found!
+          setCandidateMovies(response.movies);
+          setBackendResults((prev) => ({
+            songs: prev?.songs || [],
+            movies: response.movies!,
+            artists: prev?.artists || [],
+          }));
+          setActiveTab('search');
+          setSearchQuery(query);
+          return;
+        }
+
         if (type === 'movie' && response.songs && response.songs.length > 0) {
+          setCandidateMovies([]);
           // Add newly scraped songs to extra songs state
           setExtraSongs((prev) => [...response.songs!, ...prev]);
           const movieTitle = response.movieTitle || query.trim();
           const firstSong = response.songs[0];
+          const movieYear = response.year || year || firstSong.year || 2024;
           handleSelectMovie({
             id: slugifyMovieTitle(movieTitle),
             title: movieTitle,
-            year: firstSong.year || 2024,
+            year: movieYear,
             posterUrl: firstSong.coverUrl,
             trackCount: response.songs.length,
+            songs: response.songs,
           });
         } else if (response.song) {
+          setCandidateMovies([]);
           // Single song scraped
           setExtraSongs((prev) => [response.song!, ...prev]);
           handleSelectSong(response.song);
           setSearchQuery('');
         } else if (response.songs && response.songs.length > 0) {
+          setCandidateMovies([]);
           setExtraSongs((prev) => [...response.songs!, ...prev]);
           handleSelectSong(response.songs[0]);
           setSearchQuery('');
@@ -594,6 +618,23 @@ export function App() {
       window.history.pushState({ type: 'movie', movie }, '', targetPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Check if album tracks exist in catalog. If not, auto-trigger deep scrape with targetMovieUrl & year!
+    const albumSlug = slugifyMovieTitle(movie.title);
+    const hasLocalTracks = allAvailableSongs.some((s) => {
+      const sMovie = (s.movie || '').toLowerCase().trim();
+      const sSlug = slugifyMovieTitle(s.movie);
+      return (sMovie === movie.title.toLowerCase().trim() || sSlug === albumSlug) && (!movie.year || s.year === movie.year);
+    });
+
+    if (!hasLocalTracks && (movie.movieUrl || movie.trackCount > 0)) {
+      handleDeepSearch({
+        query: movie.title,
+        type: 'movie',
+        targetMovieUrl: movie.movieUrl,
+        year: movie.year,
+      });
+    }
   };
 
   const handleSelectArtist = (artist: Artist) => {
@@ -725,6 +766,8 @@ export function App() {
             onSelectArtist={handleSelectArtist}
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
+            candidateMovies={candidateMovies}
+            onClearCandidates={() => setCandidateMovies([])}
           />
         ) : (
           <div>

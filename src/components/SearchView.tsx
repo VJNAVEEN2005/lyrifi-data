@@ -26,8 +26,10 @@ interface SearchViewProps {
   onSelectSong: (song: Song) => void;
   onSelectMovie: (movie: MovieAlbum) => void;
   onSelectArtist: (artist: Artist) => void;
-  onDeepSearch: (data: { query: string; type: 'movie' | 'song' }) => Promise<void>;
+  onDeepSearch: (data: { query: string; type: 'movie' | 'song'; targetMovieUrl?: string; year?: number }) => Promise<void>;
   isDeepSearching?: boolean;
+  candidateMovies?: MovieAlbum[];
+  onClearCandidates?: () => void;
 }
 
 type FilterCategory = 'all' | 'songs' | 'movies' | 'artists';
@@ -45,6 +47,8 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onSelectArtist,
   onDeepSearch,
   isDeepSearching = false,
+  candidateMovies = [],
+  onClearCandidates,
 }) => {
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
@@ -778,14 +782,21 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
       {/* Deep Search Confirmation Modal with Movie / Song Prompt & Disclaimer */}
       <DeepSearchModal
-        isOpen={isDeepSearchModalOpen}
+        isOpen={isDeepSearchModalOpen || candidateMovies.length > 0}
         initialQuery={localInput.trim() || searchQuery}
-        onClose={() => setIsDeepSearchModalOpen(false)}
+        onClose={() => {
+          setIsDeepSearchModalOpen(false);
+          onClearCandidates?.();
+        }}
         onSubmit={async (data) => {
           await onDeepSearch(data);
-          setIsDeepSearchModalOpen(false);
+          if (data.targetMovieUrl || data.type === 'song') {
+            setIsDeepSearchModalOpen(false);
+          }
         }}
         isLoading={isDeepSearching}
+        candidateMovies={candidateMovies}
+        onClearCandidates={onClearCandidates}
       />
 
     </div>

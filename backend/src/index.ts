@@ -256,7 +256,7 @@ app.get('/api/songs', (c) => {
 });
 
 // GET /api/search - Sub-millisecond indexed search with full song, movie & artist matching
-app.get('/api/search', (c) => {
+app.get('/api/search', async (c) => {
   const q = c.req.query('q')?.toLowerCase().trim() || '';
   if (!q) {
     return c.json({ success: true, count: 0, results: [], songs: [], movies: [], artists: [] });
@@ -272,14 +272,14 @@ app.get('/api/search', (c) => {
       s.singers.some((singer) => singer.toLowerCase().includes(q))
   );
 
-  // 2. Matched movie albums
-  const movieMap = new Map<string, { id: string; title: string; year: number; posterUrl: string; trackCount: number }>();
+  // 2. Matched movie albums (keyed by title + year to prevent collisions across releases)
+  const movieMap = new Map<string, { id: string; title: string; year: number; posterUrl: string; trackCount: number; movieUrl?: string }>();
   songs.forEach((s) => {
     if (s.movie && s.movie.toLowerCase().includes(q)) {
-      const key = s.movie.toLowerCase().trim();
+      const key = `${s.movie.toLowerCase().trim()}_${s.year || ''}`;
       if (!movieMap.has(key)) {
         movieMap.set(key, {
-          id: key.replace(/[^a-z0-9]+/g, '-'),
+          id: `${s.movie.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')}_${s.year || 'album'}`,
           title: s.movie,
           year: s.year || 2024,
           posterUrl: s.coverUrl,
@@ -291,6 +291,68 @@ app.get('/api/search', (c) => {
       }
     }
   });
+
+  // If local movie matches are low and query is at least 2 chars, discover online candidate movies
+  if (q.length >= 2) {
+    let onlineCandidates = discoveredMoviesCache.get(q);
+    if (!onlineCandidates) {
+      try {
+        const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(q)}`;
+        const sResp = await fetch(searchUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+        });
+        if (sResp.ok) {
+          const html = await sResp.text();
+          const rawCandidates = parseMovieCandidatesFromSearchHtml(html, q);
+          if (rawCandidates.length > 0) {
+            onlineCandidates = await Promise.all(
+              rawCandidates.map(async (cand) => {
+                const poster = await fetchMovieAlbumArtwork(cand.title, undefined, cand.year);
+                return {
+                  id: `${cand.slug}_${cand.year}`,
+                  slug: cand.slug,
+                  title: cand.title,
+                  year: cand.year,
+                  trackCount: cand.trackCount,
+                  posterUrl: poster,
+                  url: cand.url,
+                  movieUrl: cand.url,
+                };
+              })
+            );
+            if (discoveredMoviesCache.size > 100) {
+              const firstKey = discoveredMoviesCache.keys().next().value;
+              if (firstKey) discoveredMoviesCache.delete(firstKey);
+            }
+            discoveredMoviesCache.set(q, onlineCandidates);
+          } else {
+            discoveredMoviesCache.set(q, []);
+          }
+        }
+      } catch {
+        // Fallback to local catalog
+      }
+    }
+
+    if (onlineCandidates && onlineCandidates.length > 0) {
+      onlineCandidates.forEach((cand) => {
+        const key = `${cand.title.toLowerCase().trim()}_${cand.year || ''}`;
+        if (!movieMap.has(key)) {
+          movieMap.set(key, {
+            id: cand.id,
+            title: cand.title,
+            year: cand.year,
+            posterUrl: cand.posterUrl,
+            trackCount: cand.trackCount,
+            movieUrl: cand.movieUrl,
+          });
+        }
+      });
+    }
+  }
 
   // 3. Matched artists (deduplicated by canonical slug, including composers & singers)
   const artistMap = new Map<string, { id: string; name: string; role: string; imageUrl: string }>();
@@ -725,25 +787,33 @@ async function fetchCleanArtwork(
 // Helper to fetch official movie album soundtrack artwork exclusively from Apple Music CDN
 async function fetchMovieAlbumArtwork(
   movie: string,
-  composer?: string
+  composer?: string,
+  year?: number | string
 ): Promise<string> {
-  const cleanMovie = (movie || '').replace(/tamil\s*(?:film|movie).*/gi, '').trim();
+  const cleanMovie = (movie || '')
+    .replace(/tamil\s*(?:film|movie).*/gi, '')
+    .replace(/\s*\(\d{4}\)/g, '')
+    .replace(/\b(19\d\d|20\d\d)\s*film\b/gi, '')
+    .replace(/[-–]\s*(19\d\d|20\d\d).*/g, '')
+    .trim();
   const cleanComp = (composer || '').trim();
+  const targetYear = year ? String(year).trim() : '';
+
   if (!cleanMovie || cleanMovie === 'Tamil Single') return '/default-cover.svg';
 
   const queries = [
-    cleanComp ? `${cleanMovie} ${cleanComp}` : '',
     `${cleanMovie} Tamil Soundtrack`,
-    `${cleanMovie} Tamil`,
+    cleanComp ? `${cleanMovie} ${cleanComp}` : '',
+    targetYear ? `${cleanMovie} ${targetYear}` : '',
     `${cleanMovie} Soundtrack`,
-    cleanMovie,
     `${cleanMovie} Original Motion Picture`,
+    cleanMovie,
   ].filter(Boolean);
 
   for (const q of queries) {
     try {
       const resp = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=5`,
+        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=10`,
         {
           headers: {
             'User-Agent':
@@ -755,8 +825,22 @@ async function fetchMovieAlbumArtwork(
         const data: any = await resp.json();
         if (data?.results?.length > 0) {
           const sorted = [...data.results].sort((a: any, b: any) => {
+            const aYear = (a.releaseDate || '').slice(0, 4);
+            const bYear = (b.releaseDate || '').slice(0, 4);
+            const aYearMatch = targetYear && aYear === targetYear;
+            const bYearMatch = targetYear && bYear === targetYear;
             const aIsOst = /soundtrack|motion picture|original/i.test(a.collectionName || '');
             const bIsOst = /soundtrack|motion picture|original/i.test(b.collectionName || '');
+
+            // Exact year and soundtrack match gets highest priority
+            if (aYearMatch && aIsOst && !(bYearMatch && bIsOst)) return -1;
+            if (bYearMatch && bIsOst && !(aYearMatch && aIsOst)) return 1;
+
+            // Year match
+            if (aYearMatch && !bYearMatch) return -1;
+            if (!aYearMatch && bYearMatch) return 1;
+
+            // Soundtrack match
             if (aIsOst && !bIsOst) return -1;
             if (!aIsOst && bIsOst) return 1;
             return 0;
@@ -773,6 +857,98 @@ async function fetchMovieAlbumArtwork(
   }
 
   return '/default-cover.svg';
+}
+
+export interface DiscoveredMovieCandidate {
+  id: string;
+  slug: string;
+  title: string;
+  year: number;
+  trackCount: number;
+  posterUrl: string;
+  url: string;
+  movieUrl?: string;
+}
+
+// In-memory cache for discovered online movie candidates
+const discoveredMoviesCache = new Map<string, DiscoveredMovieCandidate[]>();
+
+function parseMovieCandidatesFromSearchHtml(
+  html: string,
+  query: string
+): Array<{
+  slug: string;
+  title: string;
+  year: number;
+  trackCount: number;
+  url: string;
+}> {
+  const qLower = query.toLowerCase().trim();
+  const pattern = /<a[^>]+href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/movie\/([^/"']+)\/?)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const candidates: Array<{
+    slug: string;
+    title: string;
+    year: number;
+    trackCount: number;
+    url: string;
+  }> = [];
+  const seenUrls = new Set<string>();
+
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(html)) !== null) {
+    const rawUrl = match[1].trim();
+    const slug = match[2].trim();
+    const inner = match[3];
+
+    if (seenUrls.has(rawUrl)) continue;
+    seenUrls.add(rawUrl);
+
+    // Extract year from badge: <span class="... rounded-full ...">\s*(\d{4})\s*</span>
+    const yearMatch =
+      inner.match(/class=["'][^"']*rounded-full[^"']*["'][^>]*>\s*(\d{4})\s*</i) ||
+      inner.match(/\b(19\d\d|20\d\d)\b/);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : 2024;
+
+    // Extract title from <h3>...</h3>
+    const h3Match = inner.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+    let cleanTitle = h3Match ? h3Match[1] : slug.replace(/-/g, ' ');
+    cleanTitle = cleanTitle
+      .replace(/<[^>]+>/g, '')
+      .replace(/&#8211;/g, '-')
+      .replace(/&ndash;/g, '-')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/&amp;/g, '&')
+      .replace(/&#038;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s*-\s*(\d{4})\s*film/i, ' ($1)')
+      .replace(/\s*film/i, '')
+      .trim();
+
+    // Extract track count
+    const countMatch = inner.match(/(\d+)\s*songs?/i);
+    const trackCount = countMatch ? parseInt(countMatch[1], 10) : 0;
+
+    const titleLower = cleanTitle.toLowerCase();
+    const slugLower = slug.toLowerCase();
+
+    // Keep candidate if slug or title matches query
+    if (
+      slugLower.includes(qLower) ||
+      titleLower.includes(qLower) ||
+      qLower.includes(slugLower)
+    ) {
+      candidates.push({
+        slug,
+        title: cleanTitle,
+        year,
+        trackCount,
+        url: rawUrl,
+      });
+    }
+  }
+
+  return candidates;
 }
 
 // POST /api/scrape-on-demand - Real-time AI Deep Search & Ingestion
@@ -1041,40 +1217,77 @@ app.post('/api/scrape-on-demand', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const query = (body.query || c.req.query('q') || '').trim();
     const type: 'movie' | 'song' = body.type === 'movie' ? 'movie' : 'song';
+    let targetMovieUrl = (body.targetMovieUrl || body.movieUrl || '').trim();
+    const requestedYear = body.year ? parseInt(String(body.year), 10) : undefined;
 
-    if (!query) {
-      return c.json({ success: false, error: 'Query is required' }, 400);
+    if (!query && !targetMovieUrl) {
+      return c.json({ success: false, error: 'Query or movie URL is required' }, 400);
     }
 
     const qLower = query.toLowerCase();
 
-    // 1. Search Tamil lyrics archive online
-    const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(query)}`;
-    const searchResp = await fetch(searchUrl, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      },
-    });
-
-    if (!searchResp.ok) {
-      return c.json({ success: false, error: 'Search archive unreachable' }, 502);
-    }
-
-    const html = await searchResp.text();
-
     if (type === 'movie') {
-      // Find candidate movie page links
-      const movieLinks = Array.from(
-        new Set(
-          (html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/movie\/[^"']+)["']/gi) || []).map(
-            (s) => s.replace(/href=["']|["']/gi, '')
-          )
-        )
-      );
+      let movieTitleForSearch = query;
 
-      // Prioritize movie link matching the query
-      const targetMovieUrl = movieLinks.find((l) => l.toLowerCase().includes(qLower)) || movieLinks[0];
+      // If no explicit targetMovieUrl was provided, check online candidate movies
+      if (!targetMovieUrl) {
+        const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(query)}`;
+        const searchResp = await fetch(searchUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+        });
+
+        if (!searchResp.ok) {
+          return c.json({ success: false, error: 'Search archive unreachable' }, 502);
+        }
+
+        const html = await searchResp.text();
+        const rawCandidates = parseMovieCandidatesFromSearchHtml(html, query);
+
+        // If MULTIPLE candidate movies exist, let the user pick which one they want!
+        if (rawCandidates.length > 1) {
+          const candidateMovies = await Promise.all(
+            rawCandidates.map(async (cand) => {
+              const poster = await fetchMovieAlbumArtwork(cand.title, undefined, cand.year);
+              return {
+                id: `${cand.slug}_${cand.year}`,
+                slug: cand.slug,
+                title: cand.title,
+                year: cand.year,
+                trackCount: cand.trackCount,
+                posterUrl: poster,
+                url: cand.url,
+                movieUrl: cand.url,
+              };
+            })
+          );
+
+          return c.json({
+            success: true,
+            type: 'movie-selection',
+            query,
+            movies: candidateMovies,
+            count: candidateMovies.length,
+          });
+        }
+
+        if (rawCandidates.length === 1) {
+          targetMovieUrl = rawCandidates[0].url;
+          movieTitleForSearch = rawCandidates[0].title;
+        } else {
+          // Fallback to legacy regex if candidate parser found 0
+          const movieLinks = Array.from(
+            new Set(
+              (html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/movie\/[^"']+)["']/gi) || []).map(
+                (s) => s.replace(/href=["']|["']/gi, '')
+              )
+            )
+          );
+          targetMovieUrl = movieLinks.find((l) => l.toLowerCase().includes(qLower)) || movieLinks[0];
+        }
+      }
 
       let songLinks: string[] = [];
 
@@ -1099,12 +1312,22 @@ app.post('/api/scrape-on-demand', async (c) => {
 
       // If no dedicated movie page or no tracks found, extract matching song links from search page
       if (songLinks.length === 0) {
-        const found = html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[^"']+)["']/gi) || [];
-        songLinks = Array.from(
-          new Set(
-            found.map((s) => s.replace(/href=["']|["']/gi, ''))
-          )
-        );
+        const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(query)}`;
+        const searchResp = await fetch(searchUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+        });
+        if (searchResp.ok) {
+          const html = await searchResp.text();
+          const found = html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[^"']+)["']/gi) || [];
+          songLinks = Array.from(
+            new Set(
+              found.map((s) => s.replace(/href=["']|["']/gi, ''))
+            )
+          );
+        }
       }
 
       if (songLinks.length === 0) {
@@ -1146,12 +1369,15 @@ app.post('/api/scrape-on-demand', async (c) => {
       for (let i = 0; i < toScrape.length; i += batchSize) {
         const batch = toScrape.slice(i, i + batchSize);
         const results = await Promise.all(
-          batch.map((link) => scrapeSongPage(link, undefined, query))
+          batch.map((link) => scrapeSongPage(link, undefined, movieTitleForSearch || query))
         );
         for (const s of results) {
           if (s) {
             if (!s.movie || s.movie === 'Tamil Single') {
-              s.movie = query;
+              s.movie = movieTitleForSearch || query;
+            }
+            if (requestedYear) {
+              s.year = requestedYear;
             }
             if (!songMap.has(s.id)) {
               songs.unshift(s);
@@ -1164,25 +1390,32 @@ app.post('/api/scrape-on-demand', async (c) => {
       }
 
       const rawDetectedMovie =
-        allMovieSongs.find((s) => s.movie && s.movie !== 'Tamil Single')?.movie || query;
+        allMovieSongs.find((s) => s.movie && s.movie !== 'Tamil Single')?.movie || movieTitleForSearch || query;
 
       const detectedMovieTitle = rawDetectedMovie
         .split(/[-–|]|(?:\s+tamil\s+(?:film|movie))/i)[0]
         .trim() || query;
 
+      const detectedYear =
+        requestedYear ||
+        allMovieSongs.find((s) => s.year && s.year !== 2024)?.year ||
+        2024;
+
       const detectedComposer =
         allMovieSongs.find((s) => s.composer && s.composer !== 'Anirudh Ravichander')?.composer ||
         allMovieSongs[0]?.composer;
 
-      // Ensure every song in this album has the clean detected movie title
+      // Ensure every song in this album has the clean detected movie title and year
       allMovieSongs.forEach((s) => {
         s.movie = detectedMovieTitle;
+        if (detectedYear) s.year = detectedYear;
       });
 
-      // Fetch primary official album artwork for the movie using dedicated soundtrack search
+      // Fetch primary official album artwork for the movie using dedicated soundtrack search with year!
       const albumArtwork = await fetchMovieAlbumArtwork(
         detectedMovieTitle,
-        detectedComposer
+        detectedComposer,
+        detectedYear
       );
 
       // Prioritize authentic mzstatic artwork from the movie album search or from any authentic track
@@ -1207,6 +1440,7 @@ app.post('/api/scrape-on-demand', async (c) => {
         type: 'movie',
         source: 'deep-scrape',
         movieTitle: detectedMovieTitle,
+        year: detectedYear,
         songs: allMovieSongs,
         count: allMovieSongs.length,
       });
@@ -1227,6 +1461,29 @@ app.post('/api/scrape-on-demand', async (c) => {
           songs: [existing],
         });
       }
+
+      const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(query)}`;
+      const searchResp = await fetch(searchUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
+      });
+
+      if (!searchResp.ok) {
+        if (existing) {
+          return c.json({
+            success: true,
+            type: 'song',
+            source: 'cache',
+            song: existing,
+            songs: [existing],
+          });
+        }
+        return c.json({ success: false, error: 'Search archive unreachable' }, 502);
+      }
+
+      const html = await searchResp.text();
 
       const linkMatch =
         html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+-song-lyrics\/?)["']/i) ||

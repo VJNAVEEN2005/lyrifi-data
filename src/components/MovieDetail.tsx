@@ -20,7 +20,7 @@ interface MovieDetailProps {
   onBack: () => void;
   onSelectSong: (song: Song) => void;
   allSongs: Song[];
-  onDeepSearch?: (data: { query: string; type: 'movie' | 'song' }) => Promise<void>;
+  onDeepSearch?: (data: { query: string; type: 'movie' | 'song'; targetMovieUrl?: string; year?: number }) => Promise<void>;
   isDeepSearching?: boolean;
 }
 
@@ -57,7 +57,7 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
     const localMatches = allSongs.filter((s) => {
       const sMovie = (s.movie || '').toLowerCase().trim();
       const sSlug = slugifyMovieTitle(s.movie);
-      return sMovie === movieNameLower || sSlug === albumSlug;
+      return (sMovie === movieNameLower || sSlug === albumSlug) && (!movie.year || s.year === movie.year);
     });
 
     const songMap = new Map<string, Song>();
@@ -69,7 +69,7 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
     }
 
     return Array.from(songMap.values());
-  }, [allSongs, movie.title, albumSlug, backendAlbum]);
+  }, [allSongs, movie.title, movie.year, albumSlug, backendAlbum]);
 
   const composer = backendAlbum?.composer || albumSongs[0]?.composer || 'Various Artists';
   const singersList = useMemo(() => {
@@ -97,7 +97,12 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
 
   const handleTriggerDeepSearch = () => {
     if (onDeepSearch) {
-      onDeepSearch({ query: movie.title, type: 'movie' });
+      onDeepSearch({
+        query: movie.title,
+        type: 'movie',
+        targetMovieUrl: movie.movieUrl,
+        year: movie.year,
+      });
     }
   };
 

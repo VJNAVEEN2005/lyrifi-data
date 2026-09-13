@@ -63,12 +63,86 @@ export async function fetchSongLyrics(slugOrId: string): Promise<Song | null> {
 
 export interface DeepScrapeResponse {
   success: boolean;
-  type: 'movie' | 'song';
-  source: 'cache' | 'deep-scrape';
+  type: 'movie' | 'song' | 'movie-selection';
+  source?: 'cache' | 'deep-scrape';
   song?: Song;
   songs?: Song[];
   movieTitle?: string;
+  year?: number;
+  movies?: MovieAlbum[];
   error?: string;
+}
+
+const clientArtworkCache = new Map<string, string>();
+
+/**
+ * Fetch official high-resolution album artwork directly from Apple Music CDN
+ * Always succeeds in user browser with 100% CORS and 0 IP throttling!
+ */
+export async function fetchClientAppleMusicArtwork(
+  title: string,
+  year?: number | string
+): Promise<string | null> {
+  const cleanTitle = (title || '')
+    .replace(/tamil\s*(?:film|movie).*/gi, '')
+    .replace(/\s*\(\d{4}\)/g, '')
+    .replace(/\b(19\d\d|20\d\d)\s*film\b/gi, '')
+    .replace(/[-–]\s*(19\d\d|20\d\d).*/g, '')
+    .trim();
+  const targetYear = year ? String(year).trim() : '';
+  if (!cleanTitle || cleanTitle === 'Tamil Single') return null;
+
+  const cacheKey = `${cleanTitle.toLowerCase()}_${targetYear}`;
+  if (clientArtworkCache.has(cacheKey)) {
+    return clientArtworkCache.get(cacheKey)!;
+  }
+
+  const queries = [
+    `${cleanTitle} Tamil Soundtrack`,
+    targetYear ? `${cleanTitle} ${targetYear}` : '',
+    `${cleanTitle} Soundtrack`,
+    cleanTitle,
+  ].filter(Boolean);
+
+  for (const q of queries) {
+    try {
+      const resp = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=10`
+      );
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.results?.length > 0) {
+          const sorted = [...data.results].sort((a: any, b: any) => {
+            const aYear = (a.releaseDate || '').slice(0, 4);
+            const bYear = (b.releaseDate || '').slice(0, 4);
+            const aYearMatch = targetYear && aYear === targetYear;
+            const bYearMatch = targetYear && bYear === targetYear;
+            const aIsOst = /soundtrack|motion picture|original/i.test(a.collectionName || '');
+            const bIsOst = /soundtrack|motion picture|original/i.test(b.collectionName || '');
+
+            if (aYearMatch && aIsOst && !(bYearMatch && bIsOst)) return -1;
+            if (bYearMatch && bIsOst && !(aYearMatch && aIsOst)) return 1;
+            if (aYearMatch && !bYearMatch) return -1;
+            if (!aYearMatch && bYearMatch) return 1;
+            if (aIsOst && !bIsOst) return -1;
+            if (!aIsOst && bIsOst) return 1;
+            return 0;
+          });
+
+          const top = sorted[0];
+          if (top?.artworkUrl100) {
+            const highRes = top.artworkUrl100.replace('100x100bb', '800x800bb');
+            clientArtworkCache.set(cacheKey, highRes);
+            return highRes;
+          }
+        }
+      }
+    } catch {
+      // Continue to next query
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -76,17 +150,52 @@ export interface DeepScrapeResponse {
  */
 export async function triggerDeepScrape(
   query: string,
-  type: 'movie' | 'song' = 'movie'
+  type: 'movie' | 'song' = 'movie',
+  targetMovieUrl?: string,
+  year?: number
 ): Promise<DeepScrapeResponse | null> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/scrape-on-demand`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, type }),
+      body: JSON.stringify({ query, type, targetMovieUrl, year }),
     });
 
     if (!res.ok) return null;
-    const json = await res.json();
+    const json: DeepScrapeResponse = await res.json();
+
+    if (json.movies && json.movies.length > 0) {
+      json.movies = await Promise.all(
+        json.movies.map(async (m) => {
+          if (!m.posterUrl || m.posterUrl.includes('default-cover')) {
+            const appleArt = await fetchClientAppleMusicArtwork(m.title, m.year);
+            if (appleArt) {
+              return { ...m, posterUrl: appleArt };
+            }
+          }
+          return m;
+        })
+      );
+    }
+
+    if (json.songs && json.songs.length > 0) {
+      const hasMissingArt = json.songs.some((s) => !s.coverUrl || s.coverUrl.includes('default-cover'));
+      if (hasMissingArt) {
+        const appleArt = await fetchClientAppleMusicArtwork(
+          json.movieTitle || json.songs[0].movie,
+          json.year || json.songs[0].year
+        );
+        if (appleArt) {
+          json.songs.forEach((s) => {
+            if (!s.coverUrl || s.coverUrl.includes('default-cover')) {
+              s.coverUrl = appleArt;
+              s.backdropUrl = appleArt;
+            }
+          });
+        }
+      }
+    }
+
     return json;
   } catch {
     return null;
@@ -116,9 +225,23 @@ export async function searchCatalogFromBackend(query: string): Promise<BackendSe
     if (!res.ok) return null;
     const json = await res.json();
     if (!json.success) return null;
+
+    const rawMovies: MovieAlbum[] = json.movies || [];
+    const moviesWithArtwork = await Promise.all(
+      rawMovies.map(async (m) => {
+        if (!m.posterUrl || m.posterUrl.includes('default-cover')) {
+          const appleArt = await fetchClientAppleMusicArtwork(m.title, m.year);
+          if (appleArt) {
+            return { ...m, posterUrl: appleArt };
+          }
+        }
+        return m;
+      })
+    );
+
     return {
       songs: json.songs || json.results || [],
-      movies: json.movies || [],
+      movies: moviesWithArtwork,
       artists: json.artists || [],
     };
   } catch {

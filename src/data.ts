@@ -30,6 +30,7 @@ export interface MovieAlbum {
   composer?: string;
   singers?: string[];
   songs?: Song[];
+  movieUrl?: string;
 }
 
 export const slugifyMovieTitle = (title: string): string => {
