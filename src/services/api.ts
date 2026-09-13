@@ -51,6 +51,25 @@ export async function fetchSongLyrics(slugOrId: string): Promise<Song | null> {
 }
 
 /**
+ * Trigger real-time AI Deep Search & Ingestion across Tamil web archives
+ */
+export async function triggerDeepScrape(query: string): Promise<Song | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/scrape-on-demand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.song || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Record live song view to backend
  */
 export async function recordSongView(id: string): Promise<void> {

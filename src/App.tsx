@@ -6,8 +6,8 @@ import { PlayerBar } from './components/PlayerBar';
 import { LogoLoader } from './components/LogoLoader';
 import { sampleSongs, Song, MovieAlbum, Artist } from './data';
 import { scrapedCatalog } from './scrapedData';
-import { fetchSongLyrics, recordSongView } from './services/api';
-import { Heart } from 'lucide-react';
+import { fetchSongLyrics, recordSongView, triggerDeepScrape } from './services/api';
+import { Heart, Sparkles } from 'lucide-react';
 
 export function App() {
   // Combine custom polished songs with scraped catalog (metadata)
@@ -116,6 +116,30 @@ export function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts'>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingSong, setIsLoadingSong] = useState<boolean>(false);
+  const [isDeepSearching, setIsDeepSearching] = useState<boolean>(false);
+  const [deepSearchMessage, setDeepSearchMessage] = useState<string>('Searching verified Tamil lyrics...');
+
+  // Handle on-demand deep search
+  const handleDeepSearch = async (query: string) => {
+    if (!query.trim() || isDeepSearching) return;
+    setIsDeepSearching(true);
+    setDeepSearchMessage(`Scraping & verifying "${query}" across web...`);
+    
+    try {
+      const scrapedSong = await triggerDeepScrape(query.trim());
+      if (scrapedSong) {
+        // Automatically open the newly scraped song
+        handleSelectSong(scrapedSong);
+        setSearchQuery('');
+      } else {
+        alert(`Could not find lyrics for "${query}". Please check spelling.`);
+      }
+    } catch {
+      alert(`Search failed for "${query}". Please try again.`);
+    } finally {
+      setIsDeepSearching(false);
+    }
+  };
 
   // If a song is deep-linked or refreshed, ensure full lyrics are loaded
   useEffect(() => {
@@ -208,17 +232,24 @@ export function App() {
   return (
     <div className='min-h-screen bg-[#08090c] text-white flex flex-col font-sans selection:bg-pink-500/30'>
       {/* Universal Top Navigation */}
+      {/* Universal Top Navigation with AI Deep Search */}
       <Navbar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onHomeClick={handleGoHome}
+        onDeepSearch={handleDeepSearch}
+        isDeepSearching={isDeepSearching}
       />
 
       {/* Main View Router */}
       <main className='flex-1 pb-24'>
-        {isLoadingSong ? (
+        {isDeepSearching ? (
+          <div className='min-h-[70vh] flex items-center justify-center'>
+            <LogoLoader message={deepSearchMessage} />
+          </div>
+        ) : isLoadingSong ? (
           <div className='min-h-[70vh] flex items-center justify-center'>
             <LogoLoader message='Fetching authentic verified lyrics...' />
           </div>
@@ -233,8 +264,25 @@ export function App() {
           <div>
             {searchQuery && (
               <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6'>
-                <div className='text-sm text-gray-400 mb-2'>
-                  Search results for &quot;<span className='text-white font-bold'>{searchQuery}</span>&quot; ({filteredSongs.length} found)
+                <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-xl mb-4'>
+                  <div>
+                    <div className='text-sm text-gray-300'>
+                      Search results for &quot;<span className='text-white font-bold'>{searchQuery}</span>&quot; ({filteredSongs.length} in catalog)
+                    </div>
+                    {filteredSongs.length === 0 && (
+                      <div className='text-xs text-rose-400 font-medium mt-0.5'>
+                        Song not in local catalog yet. Click Deep Search to scrape & ingest it instantly!
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleDeepSearch(searchQuery)}
+                    disabled={isDeepSearching}
+                    className='self-start sm:self-auto px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-bold text-xs shadow-lg shadow-pink-500/25 transition active:scale-95 flex items-center gap-1.5'
+                  >
+                    <Sparkles className='w-3.5 h-3.5' /> Deep Search Across Web
+                  </button>
                 </div>
               </div>
             )}

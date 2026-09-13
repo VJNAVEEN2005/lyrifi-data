@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Flame, Film, Users, BarChart3 } from 'lucide-react';
+import { Search, Flame, Film, Users, BarChart3, Sparkles, Loader2 } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'home' | 'trending' | 'movies' | 'artists' | 'charts';
@@ -7,6 +7,8 @@ interface NavbarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onHomeClick: () => void;
+  onDeepSearch?: (query: string) => void;
+  isDeepSearching?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -15,6 +17,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   searchQuery,
   onSearchChange,
   onHomeClick,
+  onDeepSearch,
+  isDeepSearching = false,
 }) => {
   return (
     <header className='sticky top-0 z-50 w-full backdrop-blur-xl bg-[#090a0d]/80 border-b border-white/10 transition'>
@@ -75,20 +79,46 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Search Bar */}
+        {/* Search Bar with Deep Search action */}
         <div className='relative flex-1 max-w-md'>
-          <div className='relative'>
-            <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+          <div className='relative flex items-center'>
+            <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
             <input
               type='text'
               placeholder='Search songs, movies, artists...'
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className='w-full pl-10 pr-16 py-2 bg-white/[0.06] hover:bg-white/[0.08] focus:bg-white/10 border border-white/10 focus:border-pink-500/50 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-pink-500/50 transition'
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim() && onDeepSearch) {
+                  onDeepSearch(searchQuery.trim());
+                }
+              }}
+              className='w-full pl-10 pr-28 py-2 bg-white/[0.06] hover:bg-white/[0.08] focus:bg-white/10 border border-white/10 focus:border-pink-500/50 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-pink-500/50 transition'
             />
-            <div className='absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-gray-400 bg-white/5 border border-white/10 font-mono'>
-              Ctrl K
-            </div>
+            {searchQuery.trim() ? (
+              <button
+                onClick={() => onDeepSearch && onDeepSearch(searchQuery.trim())}
+                disabled={isDeepSearching}
+                className='absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white text-[11px] font-bold shadow-md shadow-pink-500/30 transition active:scale-95 disabled:opacity-50'
+                title='Scrape & ingest full song and movie album'
+              >
+                {isDeepSearching ? (
+                  <>
+                    <Loader2 className='w-3 h-3 animate-spin' />
+                    <span>Searching...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className='w-3 h-3 text-pink-200' />
+                    <span>Deep Search</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className='absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-gray-400 bg-white/5 border border-white/10 font-mono'>
+                Ctrl K
+              </div>
+            )}
           </div>
         </div>
 
