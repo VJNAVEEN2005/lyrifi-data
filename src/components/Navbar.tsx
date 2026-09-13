@@ -13,7 +13,7 @@ interface NavbarProps {
   onSelectMovie: (movie: MovieAlbum) => void;
   onSelectArtist: (artist: Artist) => void;
   onSubmitSearch: (query: string) => void;
-  onDeepSearch?: (query: string) => void;
+  onDeepSearch?: (data: { query: string; type: 'movie' | 'song' }) => Promise<void>;
   isDeepSearching?: boolean;
 }
 

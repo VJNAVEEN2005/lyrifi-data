@@ -56,20 +56,33 @@ export async function fetchSongLyrics(slugOrId: string): Promise<Song | null> {
   }
 }
 
+export interface DeepScrapeResponse {
+  success: boolean;
+  type: 'movie' | 'song';
+  source: 'cache' | 'deep-scrape';
+  song?: Song;
+  songs?: Song[];
+  movieTitle?: string;
+  error?: string;
+}
+
 /**
  * Trigger real-time AI Deep Search & Ingestion across Tamil web archives
  */
-export async function triggerDeepScrape(query: string): Promise<Song | null> {
+export async function triggerDeepScrape(
+  query: string,
+  type: 'movie' | 'song' = 'movie'
+): Promise<DeepScrapeResponse | null> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/scrape-on-demand`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, type }),
     });
 
     if (!res.ok) return null;
     const json = await res.json();
-    return json.song || null;
+    return json;
   } catch {
     return null;
   }

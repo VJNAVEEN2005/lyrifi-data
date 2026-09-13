@@ -13,6 +13,7 @@ import {
 import { Song, MovieAlbum, Artist } from '../data';
 import { BackendSearchResults } from '../services/api';
 import { AdBanner } from './AdBanner';
+import { DeepSearchModal } from './DeepSearchModal';
 
 interface SearchViewProps {
   searchQuery: string;
@@ -25,7 +26,7 @@ interface SearchViewProps {
   onSelectSong: (song: Song) => void;
   onSelectMovie: (movie: MovieAlbum) => void;
   onSelectArtist: (artist: Artist) => void;
-  onDeepSearch: (q: string) => void;
+  onDeepSearch: (data: { query: string; type: 'movie' | 'song' }) => Promise<void>;
   isDeepSearching?: boolean;
 }
 
@@ -49,6 +50,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [localInput, setLocalInput] = useState<string>(searchQuery);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
+  const [isDeepSearchModalOpen, setIsDeepSearchModalOpen] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync local input if external searchQuery changes (e.g. via URL or back button)
@@ -469,15 +471,15 @@ export const SearchView: React.FC<SearchViewProps> = ({
               </div>
               <div className='space-y-2'>
                 <h3 className='text-2xl font-black text-white'>
-                  Song Not in Local Catalog Yet
+                  No Matches Found in Catalog
                 </h3>
                 <p className='text-sm text-gray-400 leading-relaxed'>
-                  No local matches found for &quot;<strong className='text-white'>{searchQuery}</strong>&quot;.
-                  Click below to trigger our AI Deep Search engine—we will fetch verified Tamil & Tanglish lyrics and scrape the entire movie album in seconds!
+                  Could not find songs, movies, or artists matching &quot;<strong className='text-white'>{searchQuery}</strong>&quot; in our database.
+                  Click below to trigger our AI Deep Search crawler to ingest the movie album or individual song from web archives!
                 </p>
               </div>
               <button
-                onClick={() => onDeepSearch(searchQuery)}
+                onClick={() => setIsDeepSearchModalOpen(true)}
                 disabled={isDeepSearching}
                 className='px-6 py-3 rounded-full bg-gradient-to-r from-rose-500 via-pink-600 to-rose-600 hover:from-rose-600 hover:to-pink-700 text-white font-black text-sm shadow-xl shadow-pink-500/30 transition active:scale-95 flex items-center gap-2 mx-auto'
               >
@@ -679,6 +681,18 @@ export const SearchView: React.FC<SearchViewProps> = ({
           <AdBanner type='leaderboard' />
         </div>
       )}
+
+      {/* Deep Search Confirmation Modal with Movie / Song Prompt & Disclaimer */}
+      <DeepSearchModal
+        isOpen={isDeepSearchModalOpen}
+        initialQuery={searchQuery}
+        onClose={() => setIsDeepSearchModalOpen(false)}
+        onSubmit={async (data) => {
+          await onDeepSearch(data);
+          setIsDeepSearchModalOpen(false);
+        }}
+        isLoading={isDeepSearching}
+      />
 
     </div>
   );

@@ -16,7 +16,9 @@ import {
 import { Heart, Sparkles } from 'lucide-react';
 
 export function App() {
-  // Combine custom polished songs with scraped catalog (metadata)
+  const [extraSongs, setExtraSongs] = useState<Song[]>([]);
+
+  // Combine custom polished songs with scraped catalog (metadata) and dynamically scraped songs
   const allAvailableSongs = useMemo(() => {
     const map = new Map<string, Song>();
     sampleSongs.forEach((s) => map.set(s.id, s));
@@ -25,8 +27,11 @@ export function App() {
         map.set(s.id, s);
       }
     });
+    extraSongs.forEach((s) => {
+      map.set(s.id, s);
+    });
     return Array.from(map.values());
-  }, []);
+  }, [extraSongs]);
 
   // Compute live Movie Albums matching actual songs by Movie Name and Year
   const dynamicMovieAlbums = useMemo<MovieAlbum[]>(() => {
@@ -201,23 +206,43 @@ export function App() {
     }
   }, []);
 
-  // Handle on-demand deep search
-  const handleDeepSearch = async (query: string) => {
+  // Handle on-demand deep search for movie album or specific song
+  const handleDeepSearch = async (data: { query: string; type: 'movie' | 'song' }) => {
+    const { query, type } = data;
     if (!query.trim() || isDeepSearching) return;
     setIsDeepSearching(true);
-    setDeepSearchMessage(`Scraping & verifying "${query}" across web...`);
+    setDeepSearchMessage(
+      type === 'movie'
+        ? `Scraping & ingesting all songs from movie "${query}"...`
+        : `Scraping & verifying lyrics for "${query}" across web...`
+    );
     
     try {
-      const scrapedSong = await triggerDeepScrape(query.trim());
-      if (scrapedSong) {
-        // Automatically open the newly scraped song
-        handleSelectSong(scrapedSong);
-        setSearchQuery('');
+      const response = await triggerDeepScrape(query.trim(), type);
+      if (response && response.success) {
+        if (type === 'movie' && response.songs && response.songs.length > 0) {
+          // Add newly scraped songs to extra songs state
+          setExtraSongs((prev) => [...response.songs!, ...prev]);
+          // Refresh search with the movie title to display movie album card and all songs
+          const movieSearchQuery = response.movieTitle || query.trim();
+          await executeSearch(movieSearchQuery);
+        } else if (response.song) {
+          // Single song scraped
+          setExtraSongs((prev) => [response.song!, ...prev]);
+          handleSelectSong(response.song);
+          setSearchQuery('');
+        } else if (response.songs && response.songs.length > 0) {
+          setExtraSongs((prev) => [...response.songs!, ...prev]);
+          handleSelectSong(response.songs[0]);
+          setSearchQuery('');
+        } else {
+          alert(`Could not locate ${type === 'movie' ? 'movie album' : 'song'} for "${query}". Please check the spelling.`);
+        }
       } else {
-        alert(`Could not find lyrics for "${query}". Please check spelling.`);
+        alert(`Could not find ${type === 'movie' ? 'movie album' : 'song'} for "${query}". Please verify the spelling and try again.`);
       }
     } catch {
-      alert(`Search failed for "${query}". Please try again.`);
+      alert(`Deep Search failed for "${query}". Please try again.`);
     } finally {
       setIsDeepSearching(false);
     }
