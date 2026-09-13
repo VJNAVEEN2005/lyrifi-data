@@ -7,7 +7,6 @@ import { MovieDetail } from './components/MovieDetail';
 import { ArtistDetail } from './components/ArtistDetail';
 import { LogoLoader } from './components/LogoLoader';
 import {
-  sampleSongs,
   Song,
   MovieAlbum,
   Artist,
@@ -33,14 +32,11 @@ import { useAnimatedFavicon } from './hooks/useAnimatedFavicon';
 export function App() {
   const [extraSongs, setExtraSongs] = useState<Song[]>([]);
 
-  // Combine custom polished songs with scraped catalog (metadata) and dynamically scraped songs
+  // Combine verified catalog with dynamically added songs (no dummy/placeholder songs)
   const allAvailableSongs = useMemo(() => {
     const map = new Map<string, Song>();
-    sampleSongs.forEach((s) => map.set(s.id, s));
     scrapedCatalog.forEach((s) => {
-      if (!map.has(s.id)) {
-        map.set(s.id, s);
-      }
+      map.set(s.id, s);
     });
     extraSongs.forEach((s) => {
       map.set(s.id, s);
