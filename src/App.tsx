@@ -149,6 +149,28 @@ export function App() {
       const slugOrId = songMatch[1];
       const found = allAvailableSongs.find((s) => s.slug === slugOrId || s.id === slugOrId);
       if (found) return found;
+      // Generate clean initial placeholder for on-demand ingestion
+      const cleanTitle = slugOrId
+        .replace(/-song-lyrics/i, '')
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      return {
+        id: slugOrId.replace('-song-lyrics', ''),
+        slug: slugOrId,
+        title: cleanTitle,
+        movie: 'Tamil Song',
+        year: 2024,
+        composer: 'Music Director',
+        singers: ['Various Artists'],
+        lyricist: 'Tamil Lyricist',
+        coverUrl: '',
+        backdropUrl: '',
+        primaryGlowColor: '#ec4899',
+        secondaryGlowColor: '#f43f5e',
+        duration: '3:45',
+        lyricsTamil: [],
+        lyricsTanglish: [],
+      };
     }
     return null;
   });
@@ -343,6 +365,10 @@ export function App() {
         if (fullSong && fullSong.lyricsTamil && fullSong.lyricsTamil.length > 0) {
           setSelectedSong(fullSong);
           setCurrentPlayingSong(fullSong);
+          setExtraSongs((prev) => {
+            if (prev.some((s) => s.id === fullSong.id)) return prev;
+            return [fullSong, ...prev];
+          });
         }
         setIsLoadingSong(false);
       });

@@ -255,29 +255,6 @@ app.get('/api/songs', (c) => {
   });
 });
 
-// GET /api/songs/:slug - Retrieve complete song data with full Tamil & Tanglish lyrics
-app.get('/api/songs/:slug', (c) => {
-  const slug = c.req.param('slug');
-  const song = songMap.get(slug);
-
-  if (!song) {
-    return c.json({ success: false, error: 'Song not found' }, 404);
-  }
-
-  const liveViews = (songViews.get(song.id) || 0) + (song.views || 0);
-
-  // Edge cache: 1 hour for individual song lyrics
-  c.header('Cache-Control', 'public, max-age=3600, s-maxage=3600');
-
-  return c.json({
-    success: true,
-    data: {
-      ...song,
-      views: liveViews,
-    },
-  });
-});
-
 // GET /api/search - Sub-millisecond indexed search with full song, movie & artist matching
 app.get('/api/search', (c) => {
   const q = c.req.query('q')?.toLowerCase().trim() || '';
@@ -545,7 +522,7 @@ app.get('/api/artists/:slug', (c) => {
   const movieMap = new Map<string, { id: string; title: string; year: number; posterUrl: string; trackCount: number }>();
   artistSongs.forEach((s) => {
     if (s.movie && s.movie !== 'Tamil Single') {
-      const key = toSlug(s.movie);
+      const key = s.movie.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       if (!movieMap.has(key)) {
         movieMap.set(key, {
           id: key,
@@ -660,7 +637,11 @@ async function fetchCleanArtwork(
   const songQueries: string[] = [];
   if (cleanTitle && cleanMovie && cleanMovie !== 'Tamil Single') {
     songQueries.push(`${cleanTitle} ${cleanMovie}`);
+    songQueries.push(`${cleanMovie} ${cleanTitle}`);
     songQueries.push(`${cleanTitle} ${cleanMovie} Tamil`);
+    if (cleanComp) {
+      songQueries.push(`${cleanTitle} ${cleanComp}`);
+    }
   }
   if (cleanTitle) {
     songQueries.push(`${cleanTitle} Tamil`);
@@ -670,7 +651,7 @@ async function fetchCleanArtwork(
   for (const q of songQueries) {
     try {
       const resp = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=3`,
+        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=5`,
         {
           headers: {
             'User-Agent':
@@ -695,8 +676,8 @@ async function fetchCleanArtwork(
   // 2. Album-level searches on Apple Music (soundtrack / movie album)
   if (cleanMovie && cleanMovie !== 'Tamil Single') {
     const albumQueries = [
-      `${cleanMovie} Tamil Soundtrack`,
       cleanComp ? `${cleanMovie} ${cleanComp}` : '',
+      `${cleanMovie} Tamil Soundtrack`,
       `${cleanMovie} Tamil`,
       `${cleanMovie} Soundtrack`,
       cleanMovie,
@@ -734,6 +715,35 @@ async function fetchCleanArtwork(
         // Continue
       }
     }
+
+    // 3. Fallback to Deezer album search if Apple Music album query didn't match
+    try {
+      const deezerQueries = [
+        cleanComp ? `${cleanMovie} ${cleanComp}` : '',
+        `${cleanMovie} Tamil`,
+        cleanMovie,
+      ].filter(Boolean);
+
+      for (const dq of deezerQueries) {
+        const resp = await fetch(
+          `https://api.deezer.com/search/album?q=${encodeURIComponent(dq)}&limit=3`,
+          {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            },
+          }
+        );
+        if (resp.ok) {
+          const data: any = await resp.json();
+          if (data?.data?.length > 0 && data.data[0].cover_big) {
+            return data.data[0].cover_big;
+          }
+        }
+      }
+    } catch {
+      // Continue
+    }
   }
 
   // Clean branded fallback SVG, never external stock photo or unrelated foreign art
@@ -750,10 +760,11 @@ async function fetchMovieAlbumArtwork(
   if (!cleanMovie || cleanMovie === 'Tamil Single') return '/default-cover.svg';
 
   const queries = [
-    `${cleanMovie} Tamil Soundtrack`,
     cleanComp ? `${cleanMovie} ${cleanComp}` : '',
+    `${cleanMovie} Tamil Soundtrack`,
     `${cleanMovie} Tamil`,
     `${cleanMovie} Soundtrack`,
+    cleanMovie,
   ].filter(Boolean);
 
   for (const q of queries) {
@@ -1033,6 +1044,44 @@ async function scrapeSongPage(
     return null;
   }
 }
+
+// GET /api/songs/:slug - Retrieve complete song data with full Tamil & Tanglish lyrics
+// On-demand scraping ensures any song URL automatically fetches authentic Apple Music artwork & lyrics
+app.get('/api/songs/:slug', async (c) => {
+  const slug = c.req.param('slug');
+  let song = songMap.get(slug) || songs.find((s) => s.slug === slug || s.id === slug);
+
+  if (!song) {
+    // Attempt real-time ingestion from Tamil archive
+    const targetUrl = `https://www.tamil2lyrics.com/lyrics/${slug}/`;
+    const scraped = await scrapeSongPage(targetUrl);
+    if (scraped) {
+      if (!songMap.has(scraped.id)) {
+        songs.unshift(scraped);
+      }
+      songMap.set(scraped.id, scraped);
+      songMap.set(scraped.slug, scraped);
+      song = scraped;
+    }
+  }
+
+  if (!song) {
+    return c.json({ success: false, error: 'Song not found' }, 404);
+  }
+
+  const liveViews = (songViews.get(song.id) || 0) + (song.views || 0);
+
+  // Edge cache: 1 hour for individual song lyrics
+  c.header('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+
+  return c.json({
+    success: true,
+    data: {
+      ...song,
+      views: liveViews,
+    },
+  });
+});
 
 // POST /api/scrape-on-demand - Real-time AI Deep Search & Ingestion
 app.post('/api/scrape-on-demand', async (c) => {
