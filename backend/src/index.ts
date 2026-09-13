@@ -633,7 +633,7 @@ async function fetchCleanArtwork(
   const cleanMovie = (movie || '').replace(/tamil\s*(?:film|movie).*/gi, '').trim();
   const cleanComp = (composer || '').trim();
 
-  // 1. Song-level searches on Apple Music (prioritize accurate track matches)
+  // 1. Song-level searches exclusively on Apple Music (prioritize accurate track matches)
   const songQueries: string[] = [];
   if (cleanTitle && cleanMovie && cleanMovie !== 'Tamil Single') {
     songQueries.push(`${cleanTitle} ${cleanMovie}`);
@@ -673,7 +673,7 @@ async function fetchCleanArtwork(
     }
   }
 
-  // 2. Album-level searches on Apple Music (soundtrack / movie album)
+  // 2. Album-level searches exclusively on Apple Music (soundtrack / movie album)
   if (cleanMovie && cleanMovie !== 'Tamil Single') {
     const albumQueries = [
       cleanComp ? `${cleanMovie} ${cleanComp}` : '',
@@ -681,6 +681,7 @@ async function fetchCleanArtwork(
       `${cleanMovie} Tamil`,
       `${cleanMovie} Soundtrack`,
       cleanMovie,
+      `${cleanMovie} Original Motion Picture`,
     ].filter(Boolean);
 
     for (const q of albumQueries) {
@@ -715,42 +716,13 @@ async function fetchCleanArtwork(
         // Continue
       }
     }
-
-    // 3. Fallback to Deezer album search if Apple Music album query didn't match
-    try {
-      const deezerQueries = [
-        cleanComp ? `${cleanMovie} ${cleanComp}` : '',
-        `${cleanMovie} Tamil`,
-        cleanMovie,
-      ].filter(Boolean);
-
-      for (const dq of deezerQueries) {
-        const resp = await fetch(
-          `https://api.deezer.com/search/album?q=${encodeURIComponent(dq)}&limit=3`,
-          {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            },
-          }
-        );
-        if (resp.ok) {
-          const data: any = await resp.json();
-          if (data?.data?.length > 0 && data.data[0].cover_big) {
-            return data.data[0].cover_big;
-          }
-        }
-      }
-    } catch {
-      // Continue
-    }
   }
 
   // Clean branded fallback SVG, never external stock photo or unrelated foreign art
   return '/default-cover.svg';
 }
 
-// Helper to fetch official movie album soundtrack artwork from Apple Music CDN
+// Helper to fetch official movie album soundtrack artwork exclusively from Apple Music CDN
 async function fetchMovieAlbumArtwork(
   movie: string,
   composer?: string
@@ -765,6 +737,7 @@ async function fetchMovieAlbumArtwork(
     `${cleanMovie} Tamil`,
     `${cleanMovie} Soundtrack`,
     cleanMovie,
+    `${cleanMovie} Original Motion Picture`,
   ].filter(Boolean);
 
   for (const q of queries) {
@@ -797,27 +770,6 @@ async function fetchMovieAlbumArtwork(
     } catch {
       // Continue
     }
-  }
-
-  // Fallback search Deezer with strict "Tamil" qualifier
-  try {
-    const resp = await fetch(
-      `https://api.deezer.com/search/album?q=${encodeURIComponent(`${cleanMovie} Tamil`)}&limit=3`,
-      {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        },
-      }
-    );
-    if (resp.ok) {
-      const data: any = await resp.json();
-      if (data?.data?.length > 0 && data.data[0].cover_big) {
-        return data.data[0].cover_big;
-      }
-    }
-  } catch {
-    // Continue
   }
 
   return '/default-cover.svg';
