@@ -1008,45 +1008,63 @@ async function scrapeSongPage(
     // Clean smart quotes / corrupted unicode quotes
     title = title.replace(/[\uFFFD’‘`´]/g, "'");
 
-    // 2. Extract Movie, Singers, Composer, Lyricist from meta description
+    // 2. Extract Movie, Singers, Composer, Lyricist from print-meta or meta description
     let movie = fallbackMovie || 'Tamil Single';
     let year = 2023;
     let composer = 'Anirudh Ravichander';
     let singers = ['Various Artists'];
     let lyricist = 'Tamil Lyricist';
 
-    const metaDescMatch =
-      pageHtml.match(/<meta\s+(?:name|property)=["'](?:description|og:description)["']\s+content=["']([^"']+)["']/i);
-    if (metaDescMatch) {
-      const desc = metaDescMatch[1]
-        .replace(/&quot;/g, '')
-        .replace(/&#39;/g, "'")
-        .replace(/&amp;/g, '&');
-
-      const mMatch = desc.match(/Movie(?:\s*Name)?\s*:\s*([^,]+)/i);
-      if (mMatch) {
-        const cleanM = mMatch[1].replace(/["']/g, '').trim();
-        if (cleanM) movie = cleanM;
+    // 2a. First try dedicated print-meta block (present on modern song pages)
+    const printMetaMatch = pageHtml.match(
+      /From\s*<strong>([^<]+)<\/strong>\s*(?:\((\d{4})\))?\s*&middot;\s*Singer:\s*<strong>([^<]+)<\/strong>\s*&middot;\s*Lyricist:\s*<strong>([^<]+)<\/strong>\s*&middot;\s*Music:\s*<strong>([^<]+)<\/strong>/i
+    );
+    if (printMetaMatch) {
+      if (printMetaMatch[1]) movie = printMetaMatch[1].trim();
+      if (printMetaMatch[2]) year = parseInt(printMetaMatch[2], 10);
+      if (printMetaMatch[3]) {
+        let rawS = printMetaMatch[3].replace(/Rap by/gi, '').replace(/\band\b|&/gi, ',');
+        singers = rawS
+          .split(',')
+          .map((s) => s.trim().replace(/[\uFFFD]/g, ''))
+          .filter((s) => s.length > 1);
       }
+      if (printMetaMatch[4]) lyricist = printMetaMatch[4].trim().replace(/[\uFFFD]/g, '');
+      if (printMetaMatch[5]) composer = printMetaMatch[5].trim().replace(/[\uFFFD]/g, '');
+    } else {
+      const metaDescMatch =
+        pageHtml.match(/<meta\s+(?:name|property)=["'](?:description|og:description)["']\s+content=["']([^"']+)["']/i);
+      if (metaDescMatch) {
+        const desc = metaDescMatch[1]
+          .replace(/&quot;/g, '')
+          .replace(/&#39;/g, "'")
+          .replace(/&amp;/g, '&');
 
-      const compM = desc.match(/(?:Music\s*Director|Music\s*by)\s*:\s*([^,]+)/i);
-      if (compM) {
-        const cleanC = compM[1].replace(/["']/g, '').trim();
-        if (cleanC) composer = cleanC;
-      }
+        const mMatch = desc.match(/Movie(?:\s*Name)?\s*:\s*([^,]+)/i);
+        if (mMatch) {
+          const cleanM = mMatch[1].replace(/["']/g, '').trim();
+          if (cleanM) movie = cleanM;
+        }
 
-      const singM = desc.match(/Singers?\s*:\s*([^,]+)/i);
-      if (singM) {
-        singers = singM[1]
-          .split(/,\s*|\s+(?:and|&)\s+/i)
-          .map((s) => s.trim().replace(/["']/g, ''))
-          .filter(Boolean);
-      }
+        const compM = desc.match(/(?:Music\s*Director|Music\s*by)\s*:\s*([^,]+)/i);
+        if (compM) {
+          const cleanC = compM[1].replace(/["']/g, '').trim();
+          if (cleanC) composer = cleanC;
+        }
 
-      const lyrM = desc.match(/Lyrics?\s*:\s*([^,]+)/i);
-      if (lyrM) {
-        const cleanL = lyrM[1].replace(/["']/g, '').trim();
-        if (cleanL) lyricist = cleanL;
+        const singM = desc.match(/Singers?\s*:\s*([^,]+)/i);
+        if (singM) {
+          singers = singM[1]
+            .split(/,\s*|\s+(?:and|&)\s+/i)
+            .map((s) => s.trim().replace(/["']/g, ''))
+            .filter(Boolean);
+        }
+
+        const lyrM = desc.match(/Lyrics?\s*:\s*([^,]+)/i);
+        if (lyrM) {
+          const cleanL = lyrM[1].replace(/["']/g, '').trim();
+          if (cleanL) lyricist = cleanL;
+        }
       }
     }
 
@@ -1121,7 +1139,17 @@ async function scrapeSongPage(
         const clean = p.replace(/<[^>]+>/g, '').trim();
         const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
         for (const line of lines) {
-          if (!skipWords.has(line.toLowerCase()) && line.length > 1 && !line.startsWith('http')) {
+          const lClean = line.toLowerCase();
+          if (
+            !skipWords.has(lClean) &&
+            line.length > 1 &&
+            !line.startsWith('http') &&
+            !lClean.includes('track from') &&
+            !lClean.includes('lyrics is the') &&
+            !lClean.startsWith('singers :') &&
+            !lClean.startsWith('music director :') &&
+            !lClean.startsWith('lyricist :')
+          ) {
             lyricsTanglish.push(line);
           }
         }
@@ -1246,10 +1274,19 @@ app.post('/api/scrape-on-demand', async (c) => {
         const html = await searchResp.text();
         const rawCandidates = parseMovieCandidatesFromSearchHtml(html, query);
 
+        // If a specific year was requested, check if exactly one candidate matches that year
+        let effectiveCandidates = rawCandidates;
+        if (requestedYear && rawCandidates.length > 1) {
+          const yearMatched = rawCandidates.filter((cand) => cand.year === requestedYear);
+          if (yearMatched.length === 1) {
+            effectiveCandidates = yearMatched;
+          }
+        }
+
         // If MULTIPLE candidate movies exist, let the user pick which one they want!
-        if (rawCandidates.length > 1) {
+        if (effectiveCandidates.length > 1) {
           const candidateMovies = await Promise.all(
-            rawCandidates.map(async (cand) => {
+            effectiveCandidates.map(async (cand) => {
               const poster = await fetchMovieAlbumArtwork(cand.title, undefined, cand.year);
               return {
                 id: `${cand.slug}_${cand.year}`,
@@ -1273,9 +1310,9 @@ app.post('/api/scrape-on-demand', async (c) => {
           });
         }
 
-        if (rawCandidates.length === 1) {
-          targetMovieUrl = rawCandidates[0].url;
-          movieTitleForSearch = rawCandidates[0].title;
+        if (effectiveCandidates.length === 1) {
+          targetMovieUrl = effectiveCandidates[0].url;
+          movieTitleForSearch = effectiveCandidates[0].title;
         } else {
           // Fallback to legacy regex if candidate parser found 0
           const movieLinks = Array.from(
