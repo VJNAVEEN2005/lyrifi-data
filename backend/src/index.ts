@@ -38,6 +38,149 @@ songs.forEach((s) => {
   if (s.slug) songMap.set(s.slug, s);
 });
 
+// Canonical artist normalization to prevent duplicate profiles (e.g. "A. R. Rahman" vs "A.R. Rahman")
+export const normalizeArtistSlug = (nameOrSlug: string): string => {
+  const raw = (nameOrSlug || '')
+    .toLowerCase()
+    .trim()
+    .replace(/['’\.]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  const ALIAS_MAP: Record<string, string> = {
+    'ar-rahman': 'a-r-rahman',
+    'arrahman': 'a-r-rahman',
+    'a-r-rahman': 'a-r-rahman',
+    'allah-rakha-rahman': 'a-r-rahman',
+    'gv-prakash': 'g-v-prakash-kumar',
+    'gv-prakash-kumar': 'g-v-prakash-kumar',
+    'g-v-prakash': 'g-v-prakash-kumar',
+    'g-v-prakash-kumar': 'g-v-prakash-kumar',
+    'ilayaraja': 'ilaiyaraaja',
+    'ilaiyaraja': 'ilaiyaraaja',
+    'ilaiyaraaja': 'ilaiyaraaja',
+    'yuvan': 'yuvan-shankar-raja',
+    'yuvan-shankar': 'yuvan-shankar-raja',
+    'yuvan-shankar-raja': 'yuvan-shankar-raja',
+    'harris': 'harris-jayaraj',
+    'harris-jayaraj': 'harris-jayaraj',
+    'spb': 's-p-balasubrahmanyam',
+    'sp-balasubrahmanyam': 's-p-balasubrahmanyam',
+    's-p-balasubrahmanyam': 's-p-balasubrahmanyam',
+    'sp-balasubramaniam': 's-p-balasubrahmanyam',
+    's-p-balasubramaniam': 's-p-balasubrahmanyam',
+    'sid-sriram': 'sid-sriram',
+    'thalapathy-vijay': 'thalapathy-vijay',
+    'vijay': 'thalapathy-vijay',
+    'actor-vijay': 'thalapathy-vijay',
+    'd-imman': 'd-imman',
+    'imman': 'd-imman',
+    'devi-sri-prasad': 'devi-sri-prasad',
+    'dsp': 'devi-sri-prasad',
+    'hiphop-tamizha': 'hiphop-tamizha',
+    'hiphop-tamizha-adhi': 'hiphop-tamizha',
+    'k-s-chithra': 'k-s-chithra',
+    'ks-chithra': 'k-s-chithra',
+    'chithra': 'k-s-chithra',
+    'chinmayi': 'chinmayi',
+    'chinmayi-sripaada': 'chinmayi',
+    'sujatha': 'sujatha-mohan',
+    'sujatha-mohan': 'sujatha-mohan',
+    'andrea': 'andrea-jeremiah',
+    'andrea-jeremiah': 'andrea-jeremiah',
+    'str': 'silambarasan-tr',
+    'silambarasan': 'silambarasan-tr',
+    'silambarasan-tr': 'silambarasan-tr',
+    'simbu': 'silambarasan-tr',
+    'kamal': 'kamal-haasan',
+    'kamal-haasan': 'kamal-haasan',
+    'kamal-hassan': 'kamal-haasan',
+    'spb-charan': 's-p-b-charan',
+    's-p-b-charan': 's-p-b-charan',
+  };
+
+  return ALIAS_MAP[raw] || raw;
+};
+
+export const CANONICAL_ARTIST_NAMES: Record<string, string> = {
+  'a-r-rahman': 'A. R. Rahman',
+  'g-v-prakash-kumar': 'G. V. Prakash Kumar',
+  'ilaiyaraaja': 'Ilaiyaraaja',
+  'yuvan-shankar-raja': 'Yuvan Shankar Raja',
+  'harris-jayaraj': 'Harris Jayaraj',
+  's-p-balasubrahmanyam': 'S. P. Balasubrahmanyam',
+  'sid-sriram': 'Sid Sriram',
+  'thalapathy-vijay': 'Thalapathy Vijay',
+  'd-imman': 'D. Imman',
+  'devi-sri-prasad': 'Devi Sri Prasad',
+  'hiphop-tamizha': 'Hiphop Tamizha',
+  'k-s-chithra': 'K. S. Chithra',
+  'chinmayi': 'Chinmayi Sripaada',
+  'sujatha-mohan': 'Sujatha Mohan',
+  'andrea-jeremiah': 'Andrea Jeremiah',
+  'silambarasan-tr': 'Silambarasan TR',
+  'kamal-haasan': 'Kamal Haasan',
+  's-p-b-charan': 'S. P. B. Charan',
+};
+
+const knownPortraits: Record<string, string> = {
+  'anirudh': '/artists/anirudh-ravichander.jpg',
+  'anirudh-ravichander': '/artists/anirudh-ravichander.jpg',
+  'ar-rahman': '/artists/a-r-rahman.jpg',
+  'a-r-rahman': '/artists/a-r-rahman.jpg',
+  'ilaiyaraaja': '/artists/ilaiyaraaja.jpg',
+  'ilayaraja': '/artists/ilaiyaraaja.jpg',
+  'yuvan': '/artists/yuvan-shankar-raja.jpg',
+  'yuvan-shankar-raja': '/artists/yuvan-shankar-raja.jpg',
+  'harris': '/artists/harris-jayaraj.jpg',
+  'harris-jayaraj': '/artists/harris-jayaraj.jpg',
+  'spb': '/artists/s-p-balasubrahmanyam.jpg',
+  's-p-balasubrahmanyam': '/artists/s-p-balasubrahmanyam.jpg',
+  'sp-balasubrahmanyam': '/artists/s-p-balasubrahmanyam.jpg',
+  'sid-sriram': '/artists/sid-sriram.jpg',
+  'vijay': '/artists/thalapathy-vijay.jpg',
+  'thalapathy-vijay': '/artists/thalapathy-vijay.jpg',
+  'actor-vijay': '/artists/thalapathy-vijay.jpg',
+  'gv-prakash': '/artists/g-v-prakash-kumar.jpg',
+  'gv-prakash-kumar': '/artists/g-v-prakash-kumar.jpg',
+  'g-v-prakash-kumar': '/artists/g-v-prakash-kumar.jpg',
+  'santhosh-narayanan': '/artists/santhosh-narayanan.jpg',
+  'd-imman': '/artists/d-imman.jpg',
+  'imman': '/artists/d-imman.jpg',
+  'devi-sri-prasad': '/artists/devi-sri-prasad.jpg',
+  'dsp': '/artists/devi-sri-prasad.jpg',
+  'shankar-mahadevan': '/artists/shankar-mahadevan.jpg',
+  'hariharan': '/artists/hariharan.jpg',
+  'udit-narayan': '/artists/udit-narayan.jpg',
+  'vijay-antony': '/artists/vijay-antony.jpg',
+  'hiphop-tamizha': '/artists/hiphop-tamizha.jpg',
+  'hiphop-tamizha-adhi': '/artists/hiphop-tamizha.jpg',
+  'mano': '/artists/mano.jpg',
+  'haricharan': '/artists/haricharan.jpg',
+  'shreya-ghoshal': '/artists/shreya-ghoshal.jpg',
+  'k-s-chithra': '/artists/k-s-chithra.jpg',
+  'ks-chithra': '/artists/k-s-chithra.jpg',
+  'chithra': '/artists/k-s-chithra.jpg',
+  'jonita-gandhi': '/artists/jonita-gandhi.jpg',
+  'chinmayi': '/artists/chinmayi.jpg',
+  'chinmayi-sripaada': '/artists/chinmayi.jpg',
+  'sujatha-mohan': '/artists/sujatha-mohan.jpg',
+  'sujatha': '/artists/sujatha-mohan.jpg',
+  'anuradha-sriram': '/artists/anuradha-sriram.jpg',
+  'andrea-jeremiah': '/artists/andrea-jeremiah.jpg',
+  'andrea': '/artists/andrea-jeremiah.jpg',
+  'dhanush': '/artists/dhanush.jpg',
+  'silambarasan': '/artists/silambarasan-tr.jpg',
+  'silambarasan-tr': '/artists/silambarasan-tr.jpg',
+  'str': '/artists/silambarasan-tr.jpg',
+  'kamal-haasan': '/artists/kamal-haasan.jpg',
+  'kamal': '/artists/kamal-haasan.jpg',
+  'rajinikanth': '/artists/rajinikanth.jpg',
+  'vairamuthu': '/artists/vairamuthu.jpg',
+  's-p-b-charan': '/artists/s-p-b-charan.jpg',
+  'spb-charan': '/artists/s-p-b-charan.jpg',
+};
+
 const app = new Hono();
 
 // Enable CORS for frontend client
@@ -172,20 +315,37 @@ app.get('/api/search', (c) => {
     }
   });
 
-  // 3. Matched artists
+  // 3. Matched artists (deduplicated by canonical slug, including composers & singers)
   const artistMap = new Map<string, { id: string; name: string; role: string; imageUrl: string }>();
   songs.forEach((s) => {
+    // Check composer
     if (s.composer && s.composer.toLowerCase().includes(q)) {
-      const key = s.composer.toLowerCase().trim();
-      if (!artistMap.has(key)) {
-        artistMap.set(key, {
-          id: key.replace(/[^a-z0-9]+/g, '-'),
-          name: s.composer,
+      const canonicalKey = normalizeArtistSlug(s.composer);
+      if (!artistMap.has(canonicalKey)) {
+        const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || s.composer;
+        artistMap.set(canonicalKey, {
+          id: canonicalKey,
+          name: displayName,
           role: 'Music Director',
-          imageUrl: s.coverUrl,
+          imageUrl: knownPortraits[canonicalKey] || `/artists/${canonicalKey}.jpg`,
         });
       }
     }
+    // Check singers
+    s.singers?.forEach((singer) => {
+      if (singer && singer.toLowerCase().includes(q)) {
+        const canonicalKey = normalizeArtistSlug(singer);
+        if (!artistMap.has(canonicalKey)) {
+          const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || singer;
+          artistMap.set(canonicalKey, {
+            id: canonicalKey,
+            name: displayName,
+            role: 'Playback Singer',
+            imageUrl: knownPortraits[canonicalKey] || `/artists/${canonicalKey}.jpg`,
+          });
+        }
+      }
+    });
   });
 
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -328,28 +488,19 @@ app.get('/api/movies/:album', (c) => {
 // GET /api/artists/:slug - Dedicated Artist / Composer details, songs, and albums
 app.get('/api/artists/:slug', (c) => {
   const artistSlug = c.req.param('slug').toLowerCase().trim();
-
-  const toSlug = (str: string) =>
-    (str || '')
-      .toLowerCase()
-      .trim()
-      .replace(/['’\.]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-
-  const normSlug = toSlug(artistSlug);
+  const normSlug = normalizeArtistSlug(artistSlug);
 
   // 1. Find all songs composed by this artist
   const composedSongs = songs.filter((s) => {
-    const cSlug = toSlug(s.composer);
-    return cSlug === normSlug || cSlug.includes(normSlug) || normSlug.includes(cSlug);
+    const cSlug = normalizeArtistSlug(s.composer);
+    return cSlug === normSlug;
   });
 
   // 2. Find all songs sung by this artist
   const sungSongs = songs.filter((s) => {
     return s.singers.some((singer) => {
-      const sSlug = toSlug(singer);
-      return sSlug === normSlug || sSlug.includes(normSlug) || normSlug.includes(sSlug);
+      const sSlug = normalizeArtistSlug(singer);
+      return sSlug === normSlug;
     });
   });
 
@@ -363,20 +514,19 @@ app.get('/api/artists/:slug', (c) => {
     return c.json({ success: false, error: 'Artist not found' }, 404);
   }
 
-  // Determine artist display name and role
+  // Determine artist display name and role using canonical naming
   const isPrimarilyComposer = composedSongs.length >= sungSongs.length;
-  let artistName = '';
-  if (isPrimarilyComposer && composedSongs[0]?.composer) {
-    artistName = composedSongs[0].composer;
-  } else if (sungSongs.length > 0) {
-    for (const s of sungSongs) {
-      const match = s.singers.find((singer) => {
-        const sSlug = toSlug(singer);
-        return sSlug === normSlug || sSlug.includes(normSlug) || normSlug.includes(sSlug);
-      });
-      if (match) {
-        artistName = match;
-        break;
+  let artistName = CANONICAL_ARTIST_NAMES[normSlug] || '';
+  if (!artistName) {
+    if (isPrimarilyComposer && composedSongs[0]?.composer) {
+      artistName = composedSongs[0].composer;
+    } else if (sungSongs.length > 0) {
+      for (const s of sungSongs) {
+        const match = s.singers.find((singer) => normalizeArtistSlug(singer) === normSlug);
+        if (match) {
+          artistName = match;
+          break;
+        }
       }
     }
   }

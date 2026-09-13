@@ -14,6 +14,8 @@ import {
   slugifyMovieTitle,
   getMovieUrl,
   slugifyArtistName,
+  normalizeArtistSlug,
+  CANONICAL_ARTIST_NAMES,
   getArtistUrl,
   getArtistPhoto,
 } from './data';
@@ -74,27 +76,34 @@ export function App() {
     return Array.from(movieMap.values()).sort((a, b) => b.trackCount - a.trackCount || b.year - a.year);
   }, [allAvailableSongs]);
 
-  // Compute live Artists & Composers matching actual songs
+  // Compute live Artists & Composers matching actual songs (deduplicated by canonical artist slug)
   const dynamicArtists = useMemo<Artist[]>(() => {
-    const artistMap = new Map<string, { artist: Artist; songCount: number }>();
+    const artistMap = new Map<string, { artist: Artist; songCount: number; isComposer: boolean }>();
     
     allAvailableSongs.forEach((s) => {
       // 1. Composer
       const comp = s.composer?.trim();
       if (comp && comp !== 'Unknown Composer') {
-        const key = comp.toLowerCase();
-        const existing = artistMap.get(key);
+        const canonicalKey = normalizeArtistSlug(comp);
+        const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || comp;
+        const existing = artistMap.get(canonicalKey);
         if (existing) {
           existing.songCount += 1;
+          existing.isComposer = true;
+          existing.artist.role = 'Music Director';
+          if (!existing.artist.name || existing.artist.name.length < displayName.length) {
+            existing.artist.name = displayName;
+          }
         } else {
-          artistMap.set(key, {
+          artistMap.set(canonicalKey, {
             artist: {
-              id: slugifyArtistName(comp),
-              name: comp,
+              id: canonicalKey,
+              name: displayName,
               role: 'Music Director',
-              imageUrl: getArtistPhoto(comp),
+              imageUrl: getArtistPhoto(canonicalKey),
             },
             songCount: 1,
+            isComposer: true,
           });
         }
       }
@@ -103,19 +112,24 @@ export function App() {
       s.singers?.forEach((singer) => {
         const sing = singer?.trim();
         if (sing && sing !== 'Various Artists' && sing.length > 2) {
-          const key = sing.toLowerCase();
-          const existing = artistMap.get(key);
+          const canonicalKey = normalizeArtistSlug(sing);
+          const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || sing;
+          const existing = artistMap.get(canonicalKey);
           if (existing) {
             existing.songCount += 1;
+            if (!existing.isComposer) {
+              existing.artist.role = 'Playback Singer';
+            }
           } else {
-            artistMap.set(key, {
+            artistMap.set(canonicalKey, {
               artist: {
-                id: slugifyArtistName(sing),
-                name: sing,
+                id: canonicalKey,
+                name: displayName,
                 role: 'Playback Singer',
-                imageUrl: getArtistPhoto(sing),
+                imageUrl: getArtistPhoto(canonicalKey),
               },
               songCount: 1,
+              isComposer: false,
             });
           }
         }

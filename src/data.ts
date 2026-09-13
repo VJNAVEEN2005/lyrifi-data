@@ -56,13 +56,93 @@ export interface Artist {
   movieCount?: number;
 }
 
-export const slugifyArtistName = (name: string): string => {
-  return (name || '')
+export const normalizeArtistSlug = (nameOrSlug: string): string => {
+  const raw = (nameOrSlug || '')
     .toLowerCase()
     .trim()
     .replace(/['’\.]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+
+  // Consolidate known aliases & spelling variations to one canonical slug
+  const ALIAS_MAP: Record<string, string> = {
+    'ar-rahman': 'a-r-rahman',
+    'arrahman': 'a-r-rahman',
+    'a-r-rahman': 'a-r-rahman',
+    'allah-rakha-rahman': 'a-r-rahman',
+    'gv-prakash': 'g-v-prakash-kumar',
+    'gv-prakash-kumar': 'g-v-prakash-kumar',
+    'g-v-prakash': 'g-v-prakash-kumar',
+    'g-v-prakash-kumar': 'g-v-prakash-kumar',
+    'ilayaraja': 'ilaiyaraaja',
+    'ilaiyaraja': 'ilaiyaraaja',
+    'ilaiyaraaja': 'ilaiyaraaja',
+    'yuvan': 'yuvan-shankar-raja',
+    'yuvan-shankar': 'yuvan-shankar-raja',
+    'yuvan-shankar-raja': 'yuvan-shankar-raja',
+    'harris': 'harris-jayaraj',
+    'harris-jayaraj': 'harris-jayaraj',
+    'spb': 's-p-balasubrahmanyam',
+    'sp-balasubrahmanyam': 's-p-balasubrahmanyam',
+    's-p-balasubrahmanyam': 's-p-balasubrahmanyam',
+    'sp-balasubramaniam': 's-p-balasubrahmanyam',
+    's-p-balasubramaniam': 's-p-balasubrahmanyam',
+    'sid-sriram': 'sid-sriram',
+    'thalapathy-vijay': 'thalapathy-vijay',
+    'vijay': 'thalapathy-vijay',
+    'actor-vijay': 'thalapathy-vijay',
+    'd-imman': 'd-imman',
+    'imman': 'd-imman',
+    'devi-sri-prasad': 'devi-sri-prasad',
+    'dsp': 'devi-sri-prasad',
+    'hiphop-tamizha': 'hiphop-tamizha',
+    'hiphop-tamizha-adhi': 'hiphop-tamizha',
+    'k-s-chithra': 'k-s-chithra',
+    'ks-chithra': 'k-s-chithra',
+    'chithra': 'k-s-chithra',
+    'chinmayi': 'chinmayi',
+    'chinmayi-sripaada': 'chinmayi',
+    'sujatha': 'sujatha-mohan',
+    'sujatha-mohan': 'sujatha-mohan',
+    'andrea': 'andrea-jeremiah',
+    'andrea-jeremiah': 'andrea-jeremiah',
+    'str': 'silambarasan-tr',
+    'silambarasan': 'silambarasan-tr',
+    'silambarasan-tr': 'silambarasan-tr',
+    'simbu': 'silambarasan-tr',
+    'kamal': 'kamal-haasan',
+    'kamal-haasan': 'kamal-haasan',
+    'kamal-hassan': 'kamal-haasan',
+    'spb-charan': 's-p-b-charan',
+    's-p-b-charan': 's-p-b-charan',
+  };
+
+  return ALIAS_MAP[raw] || raw;
+};
+
+export const CANONICAL_ARTIST_NAMES: Record<string, string> = {
+  'a-r-rahman': 'A. R. Rahman',
+  'g-v-prakash-kumar': 'G. V. Prakash Kumar',
+  'ilaiyaraaja': 'Ilaiyaraaja',
+  'yuvan-shankar-raja': 'Yuvan Shankar Raja',
+  'harris-jayaraj': 'Harris Jayaraj',
+  's-p-balasubrahmanyam': 'S. P. Balasubrahmanyam',
+  'sid-sriram': 'Sid Sriram',
+  'thalapathy-vijay': 'Thalapathy Vijay',
+  'd-imman': 'D. Imman',
+  'devi-sri-prasad': 'Devi Sri Prasad',
+  'hiphop-tamizha': 'Hiphop Tamizha',
+  'k-s-chithra': 'K. S. Chithra',
+  'chinmayi': 'Chinmayi Sripaada',
+  'sujatha-mohan': 'Sujatha Mohan',
+  'andrea-jeremiah': 'Andrea Jeremiah',
+  'silambarasan-tr': 'Silambarasan TR',
+  'kamal-haasan': 'Kamal Haasan',
+  's-p-b-charan': 'S. P. B. Charan',
+};
+
+export const slugifyArtistName = (name: string): string => {
+  return normalizeArtistSlug(name);
 };
 
 export const getArtistUrl = (artist: { name: string }): string => {

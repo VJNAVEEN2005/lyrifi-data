@@ -10,7 +10,7 @@ import {
   SlidersHorizontal,
   X
 } from 'lucide-react';
-import { Song, MovieAlbum, Artist } from '../data';
+import { Song, MovieAlbum, Artist, normalizeArtistSlug } from '../data';
 import { BackendSearchResults } from '../services/api';
 import { AdBanner } from './AdBanner';
 import { DeepSearchModal } from './DeepSearchModal';
@@ -95,9 +95,18 @@ export const SearchView: React.FC<SearchViewProps> = ({
       .filter((m) => m.title.toLowerCase().includes(trimmed))
       .slice(0, 3);
 
-    const matchedA = artists
-      .filter((a) => a.name.toLowerCase().includes(trimmed))
-      .slice(0, 2);
+    const matchedA: Artist[] = [];
+    const seenArtists = new Set<string>();
+    for (const a of artists) {
+      if (a.name.toLowerCase().includes(trimmed)) {
+        const canonical = normalizeArtistSlug(a.id || a.name);
+        if (!seenArtists.has(canonical)) {
+          seenArtists.add(canonical);
+          matchedA.push(a);
+          if (matchedA.length >= 2) break;
+        }
+      }
+    }
 
     return { songs: matchedS, movies: matchedM, artists: matchedA };
   }, [trimmed, songs, movies, artists]);
@@ -155,7 +164,17 @@ export const SearchView: React.FC<SearchViewProps> = ({
     return localMatchedMovies;
   }, [backendResults, localMatchedMovies, selectedYear]);
 
-  const matchedArtists = backendResults ? backendResults.artists : localMatchedArtists;
+  const matchedArtists = useMemo(() => {
+    const list = backendResults ? backendResults.artists : localMatchedArtists;
+    const map = new Map<string, Artist>();
+    list.forEach((a) => {
+      const canonical = normalizeArtistSlug(a.id || a.name);
+      if (!map.has(canonical)) {
+        map.set(canonical, a);
+      }
+    });
+    return Array.from(map.values());
+  }, [backendResults, localMatchedArtists]);
 
   // Available Years Filter Pills
   const availableYears = useMemo(() => {

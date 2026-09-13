@@ -12,7 +12,7 @@ import {
   Mic2,
   Film
 } from 'lucide-react';
-import { Song, MovieAlbum, Artist, getArtistUrl, slugifyArtistName, slugifyMovieTitle, getArtistPhoto } from '../data';
+import { Song, MovieAlbum, Artist, getArtistUrl, slugifyArtistName, normalizeArtistSlug, slugifyMovieTitle, getArtistPhoto } from '../data';
 import { fetchArtistDetails, ArtistDetails } from '../services/api';
 
 interface ArtistDetailProps {
@@ -34,11 +34,12 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
   onDeepSearch,
   isDeepSearching = false,
 }) => {
+  const [activeTab, setActiveTab] = useState<'all' | 'composed' | 'sung'>('all');
   const [copied, setCopied] = useState<boolean>(false);
   const [backendArtist, setBackendArtist] = useState<ArtistDetails | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'composed' | 'sung'>('all');
+  const [isLoadingBackend, setIsLoadingBackend] = useState<boolean>(false);
 
-  const artistSlug = useMemo(() => slugifyArtistName(artist.name), [artist.name]);
+  const artistSlug = useMemo(() => normalizeArtistSlug(artist.id || artist.name), [artist]);
 
   // Fetch full artist details and tracks from backend API
   useEffect(() => {
@@ -56,23 +57,16 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
   // Compute all matching songs locally and merge with backend
   const { allArtistSongs, composedSongs, sungSongs, artistMovies } = useMemo(() => {
     const norm = artistSlug;
-    const toSlug = (s: string) =>
-      (s || '')
-        .toLowerCase()
-        .trim()
-        .replace(/['’\.]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
 
     const localComposed = allSongs.filter((s) => {
-      const cSlug = toSlug(s.composer);
-      return cSlug === norm || cSlug.includes(norm) || norm.includes(cSlug);
+      const cSlug = normalizeArtistSlug(s.composer);
+      return cSlug === norm;
     });
 
     const localSung = allSongs.filter((s) => {
       return s.singers.some((singer) => {
-        const sSlug = toSlug(singer);
-        return sSlug === norm || sSlug.includes(norm) || norm.includes(sSlug);
+        const sSlug = normalizeArtistSlug(singer);
+        return sSlug === norm;
       });
     });
 
