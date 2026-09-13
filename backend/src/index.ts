@@ -325,6 +325,72 @@ app.get('/api/movies/:album', (c) => {
   });
 });
 
+// Helper to fetch clean, high-resolution official music artwork from Apple Music CDN
+// NEVER uses image URLs from scraped websites (avoids hotlink blocks and keeps catalog professional)
+async function fetchCleanArtwork(title: string, movie: string): Promise<string> {
+  const cleanTitle = (title || '').replace(/lyrics/gi, '').trim();
+  const cleanMovie = (movie || '').trim();
+
+  const searchQueries: string[] = [];
+  if (cleanTitle && cleanMovie && cleanMovie !== 'Tamil Single') {
+    searchQueries.push(`${cleanTitle} ${cleanMovie}`);
+  }
+  if (cleanTitle) {
+    searchQueries.push(cleanTitle);
+  }
+  if (cleanMovie && cleanMovie !== 'Tamil Single') {
+    searchQueries.push(cleanMovie);
+  }
+
+  for (const q of searchQueries) {
+    try {
+      const resp = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=1`,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+        }
+      );
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.results?.length > 0 && data.results[0].artworkUrl100) {
+          return data.results[0].artworkUrl100.replace('100x100bb', '800x800bb');
+        }
+      }
+    } catch {
+      // Continue to next search candidate
+    }
+  }
+
+  // Fallback search by album
+  if (cleanMovie && cleanMovie !== 'Tamil Single') {
+    try {
+      const resp = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(cleanMovie)}&entity=album&limit=1`,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+        }
+      );
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.results?.length > 0 && data.results[0].artworkUrl100) {
+          return data.results[0].artworkUrl100.replace('100x100bb', '800x800bb');
+        }
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  // Safe royalty-free music image fallback
+  return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop';
+}
+
 // POST /api/scrape-on-demand - Real-time AI Deep Search & Ingestion
 // Helper to scrape a single song page from URL
 async function scrapeSongPage(
@@ -443,10 +509,8 @@ async function scrapeSongPage(
       year = parseInt(yearMatch[1], 10);
     }
 
-    const imgMatch = pageHtml.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
-    const coverUrl = imgMatch
-      ? imgMatch[1]
-      : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop';
+    // Official Apple Music CDN artwork (crisp 800x800, zero hotlink blocks, never uses scraped website images)
+    const coverUrl = await fetchCleanArtwork(title, movie);
 
     // Lyrics extraction - Parse dedicated Tamil and English tab panels
     let lyricsTamil: string[] = [];
