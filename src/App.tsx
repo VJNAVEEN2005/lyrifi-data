@@ -5,6 +5,7 @@ import { SearchView } from './components/SearchView';
 import { SongDetail } from './components/SongDetail';
 import { MovieDetail } from './components/MovieDetail';
 import { ArtistDetail } from './components/ArtistDetail';
+import { AdminPortal } from './components/AdminPortal';
 import { LogoLoader } from './components/LogoLoader';
 import {
   Song,
@@ -192,6 +193,11 @@ export function App() {
     return null;
   });
 
+  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => {
+    const path = window.location.pathname;
+    return path.startsWith('/secret-admin') || path.startsWith('/admin');
+  });
+
   const [activeTab, setActiveTab] = useState<'home' | 'movies' | 'artists' | 'search'>(() => {
     const path = window.location.pathname;
     if (path.startsWith('/search')) {
@@ -370,7 +376,9 @@ export function App() {
 
   // Synchronize Browser Tab Name & Title dynamically
   useEffect(() => {
-    if (selectedSong) {
+    if (isAdminRoute) {
+      document.title = 'Admin Review Portal | Lyrifi';
+    } else if (selectedSong) {
       document.title = `${selectedSong.title} Lyrics - ${selectedSong.movie} | Lyrifi`;
     } else if (selectedMovie) {
       document.title = `${selectedMovie.title} (${selectedMovie.year || 2024}) Album & Lyrics | Lyrifi`;
@@ -385,7 +393,7 @@ export function App() {
     } else {
       document.title = 'Lyrifi - Tamil Songs Lyrics | தமிழ் & Tanglish';
     }
-  }, [selectedSong, selectedMovie, selectedArtist, activeTab, searchQuery]);
+  }, [isAdminRoute, selectedSong, selectedMovie, selectedArtist, activeTab, searchQuery]);
 
   // Handle browser Back / Forward buttons (popstate)
   useEffect(() => {
@@ -459,6 +467,16 @@ export function App() {
         return;
       }
 
+      if (path.startsWith('/secret-admin') || path.startsWith('/admin')) {
+        setSelectedSong(null);
+        setSelectedMovie(null);
+        setSelectedArtist(null);
+        setIsAdminRoute(true);
+        return;
+      }
+
+      setIsAdminRoute(false);
+
       // If returning to home or any other path
       setSelectedSong(null);
       setSelectedMovie(null);
@@ -492,6 +510,7 @@ export function App() {
   };
 
   const handleSelectSong = async (song: Song) => {
+    setIsAdminRoute(false);
     // Record live analytics view in backend
     recordSongView(song.id);
 
@@ -526,6 +545,7 @@ export function App() {
   };
 
   const handleGoHome = () => {
+    setIsAdminRoute(false);
     setSelectedSong(null);
     setSelectedMovie(null);
     setSelectedArtist(null);
@@ -539,6 +559,7 @@ export function App() {
   };
 
   const handleSelectMovie = (movie: MovieAlbum) => {
+    setIsAdminRoute(false);
     setSelectedSong(null);
     setSelectedArtist(null);
     setSelectedMovie(movie);
@@ -550,6 +571,7 @@ export function App() {
   };
 
   const handleSelectArtist = (artist: Artist) => {
+    setIsAdminRoute(false);
     const verifiedPhoto = artist.imageUrl && !artist.imageUrl.includes('-art.jpg') && !artist.imageUrl.includes('mzstatic')
       ? artist.imageUrl
       : getArtistPhoto(artist.name || artist.id);
@@ -611,7 +633,20 @@ export function App() {
 
       {/* Main View Router */}
       <main className='flex-1 pb-12'>
-        {isDeepSearching ? (
+        {isAdminRoute ? (
+          /* SECRET ADMIN REVIEW PORTAL (NO PUBLIC BUTTONS) */
+          <AdminPortal
+            allSongs={allAvailableSongs}
+            onSongUpdated={(updatedSong) => {
+              setExtraSongs((prev) => {
+                const next = prev.filter((s) => s.id !== updatedSong.id);
+                next.unshift(updatedSong);
+                return next;
+              });
+            }}
+            onGoHome={handleGoHome}
+          />
+        ) : isDeepSearching ? (
           <div className='min-h-[70vh] flex items-center justify-center'>
             <LogoLoader message={deepSearchMessage} />
           </div>

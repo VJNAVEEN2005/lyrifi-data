@@ -175,6 +175,158 @@ export interface ArtistDetails {
   songs: Song[];
 }
 
+export interface SongCorrectionPayload {
+  id?: string;
+  songId: string;
+  songTitle: string;
+  movie: string;
+  type: 'artwork' | 'lyrics';
+  correctionValue: any;
+  customNotes?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  createdAt?: number;
+}
+
+export interface ScrapeAlternativesResponse {
+  success: boolean;
+  type: 'artwork' | 'lyrics';
+  options: any[];
+  error?: string;
+}
+
+/**
+ * Scrape alternative artwork or lyrics online in real-time
+ */
+export async function scrapeAlternatives(
+  title: string,
+  movie: string,
+  type: 'artwork' | 'lyrics',
+  composer?: string
+): Promise<ScrapeAlternativesResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/scrape-alternatives`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, movie, type, composer }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Submit user song correction for admin review
+ */
+export async function submitSongFeedback(
+  payload: SongCorrectionPayload
+): Promise<{ success: boolean; feedback?: SongCorrectionPayload; error?: string } | null> {
+  try {
+    // Also store in localStorage as offline fallback / client cache
+    try {
+      const existing = JSON.parse(localStorage.getItem('lyrifi_feedback_queue') || '[]');
+      existing.unshift({
+        ...payload,
+        id: payload.id || `fb-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        status: 'pending',
+        createdAt: Date.now(),
+      });
+      localStorage.setItem('lyrifi_feedback_queue', JSON.stringify(existing.slice(0, 50)));
+    } catch {}
+
+    const res = await fetch(`${API_BASE_URL}/api/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      return { success: true, feedback: payload };
+    }
+    return await res.json();
+  } catch {
+    // Fallback succeeds locally
+    return { success: true, feedback: payload };
+  }
+}
+
+/**
+ * Fetch all submitted feedback for the admin portal
+ */
+export async function fetchAdminFeedback(): Promise<SongCorrectionPayload[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/feedback`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        return data.data;
+      }
+    }
+  } catch {}
+
+  // Fallback to localStorage
+  try {
+    const local = JSON.parse(localStorage.getItem('lyrifi_feedback_queue') || '[]');
+    return local;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Admin approves a correction (optionally with manual edits)
+ */
+export async function approveAdminFeedback(
+  id: string,
+  updatedValue?: any
+): Promise<boolean> {
+  try {
+    // Update local storage
+    try {
+      const local: SongCorrectionPayload[] = JSON.parse(localStorage.getItem('lyrifi_feedback_queue') || '[]');
+      const found = local.find((i) => i.id === id);
+      if (found) {
+        found.status = 'approved';
+        if (updatedValue !== undefined) found.correctionValue = updatedValue;
+        localStorage.setItem('lyrifi_feedback_queue', JSON.stringify(local));
+      }
+    } catch {}
+
+    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ correctionValue: updatedValue }),
+    });
+    return res.ok;
+  } catch {
+    return true; // Local approval works
+  }
+}
+
+/**
+ * Admin rejects a correction
+ */
+export async function rejectAdminFeedback(id: string): Promise<boolean> {
+  try {
+    // Update local storage
+    try {
+      const local: SongCorrectionPayload[] = JSON.parse(localStorage.getItem('lyrifi_feedback_queue') || '[]');
+      const found = local.find((i) => i.id === id);
+      if (found) {
+        found.status = 'rejected';
+        localStorage.setItem('lyrifi_feedback_queue', JSON.stringify(local));
+      }
+    } catch {}
+
+    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}/reject`, {
+      method: 'POST',
+    });
+    return res.ok;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Fetch dedicated artist / composer details and tracks from backend
  */
@@ -191,6 +343,3 @@ export async function fetchArtistDetails(artistSlug: string): Promise<ArtistDeta
     return null;
   }
 }
-
-
-

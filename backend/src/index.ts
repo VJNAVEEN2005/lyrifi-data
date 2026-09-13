@@ -1279,24 +1279,255 @@ app.post('/api/scrape-on-demand', async (c) => {
   }
 });
 
-// POST /api/songs/:id/view - Realtime view incrementer
-app.post('/api/songs/:id/view', (c) => {
-  const id = c.req.param('id');
-  const song = songMap.get(id);
+// In-memory feedback/corrections store
+export interface SongCorrection {
+  id: string;
+  songId: string;
+  songTitle: string;
+  movie: string;
+  type: 'artwork' | 'lyrics';
+  correctionValue: any; // artwork URL string OR { tamil: string[]; tanglish: string[] }
+  customNotes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+}
 
-  if (!song) {
-    return c.json({ success: false, error: 'Song not found' }, 404);
+const feedbackStore: SongCorrection[] = [];
+
+// POST /api/scrape-alternatives - Search online for alternative artwork or lyrics
+app.post('/api/scrape-alternatives', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const title = (body.title || '').trim();
+    const movie = (body.movie || '').trim();
+    const composer = (body.composer || '').trim();
+    const type: 'artwork' | 'lyrics' = body.type === 'lyrics' ? 'lyrics' : 'artwork';
+
+    if (!title) {
+      return c.json({ success: false, error: 'Title is required' }, 400);
+    }
+
+    if (type === 'artwork') {
+      const cleanTitle = title.replace(/lyrics/gi, '').trim();
+      const cleanMovie = movie.replace(/tamil\s*(?:film|movie).*/gi, '').trim();
+
+      const candidateUrls: string[] = [];
+      const queries = [
+        `${cleanTitle} ${cleanMovie}`,
+        `${cleanTitle} Tamil`,
+        `${cleanMovie} Tamil Soundtrack`,
+        `${cleanMovie} Tamil`,
+      ].filter(Boolean);
+
+      for (const q of queries) {
+        try {
+          const resp = await fetch(
+            `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=5`,
+            {
+              headers: {
+                'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              },
+            }
+          );
+          if (resp.ok) {
+            const data: any = await resp.json();
+            for (const item of data?.results || []) {
+              if (item.artworkUrl100) {
+                const highRes = item.artworkUrl100.replace('100x100bb', '800x800bb');
+                if (!candidateUrls.includes(highRes)) {
+                  candidateUrls.push(highRes);
+                }
+              }
+            }
+          }
+        } catch {
+          // Continue
+        }
+      }
+
+      // Also search album covers
+      if (cleanMovie) {
+        try {
+          const resp = await fetch(
+            `https://itunes.apple.com/search?term=${encodeURIComponent(`${cleanMovie} Tamil`)}&entity=album&limit=4`,
+            {
+              headers: {
+                'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              },
+            }
+          );
+          if (resp.ok) {
+            const data: any = await resp.json();
+            for (const item of data?.results || []) {
+              if (item.artworkUrl100) {
+                const highRes = item.artworkUrl100.replace('100x100bb', '800x800bb');
+                if (!candidateUrls.includes(highRes)) {
+                  candidateUrls.push(highRes);
+                }
+              }
+            }
+          }
+        } catch {
+          // Continue
+        }
+      }
+
+      return c.json({
+        success: true,
+        type: 'artwork',
+        options: candidateUrls.slice(0, 8),
+      });
+    } else {
+      // Scrape alternative lyrics from online archives
+      const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(`${title} ${movie}`)}`;
+      const searchResp = await fetch(searchUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
+      });
+
+      const options: Array<{ title: string; source: string; lyricsTamil: string[]; lyricsTanglish: string[] }> = [];
+
+      if (searchResp.ok) {
+        const html = await searchResp.text();
+        const matches = Array.from(
+          new Set(
+            (html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+-song-lyrics\/?)["']/gi) || [])
+              .map((s) => s.replace(/href=["']|["']/gi, ''))
+          )
+        );
+
+        for (const link of matches.slice(0, 3)) {
+          const parsed = await scrapeSongPage(link, title, movie);
+          if (parsed && (parsed.lyricsTamil.length > 0 || parsed.lyricsTanglish.length > 0)) {
+            options.push({
+              title: parsed.title || title,
+              source: link,
+              lyricsTamil: parsed.lyricsTamil,
+              lyricsTanglish: parsed.lyricsTanglish,
+            });
+          }
+        }
+      }
+
+      return c.json({
+        success: true,
+        type: 'lyrics',
+        options,
+      });
+    }
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message || 'Scrape alternatives failed' }, 500);
+  }
+});
+
+// POST /api/feedback - User submits wrong artwork/lyrics report
+app.post('/api/feedback', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    if (!body.songId || !body.type || !body.correctionValue) {
+      return c.json({ success: false, error: 'Missing required feedback fields' }, 400);
+    }
+
+    const item: SongCorrection = {
+      id: `fb-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      songId: body.songId,
+      songTitle: body.songTitle || 'Unknown Song',
+      movie: body.movie || 'Unknown Movie',
+      type: body.type,
+      correctionValue: body.correctionValue,
+      customNotes: body.customNotes || '',
+      status: 'pending',
+      createdAt: Date.now(),
+    };
+
+    feedbackStore.unshift(item);
+
+    return c.json({
+      success: true,
+      message: 'Correction submitted for admin review',
+      feedback: item,
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message || 'Feedback submission failed' }, 500);
+  }
+});
+
+// GET /api/admin/feedback - List all submissions for admin review
+app.get('/api/admin/feedback', (c) => {
+  return c.json({
+    success: true,
+    count: feedbackStore.length,
+    data: feedbackStore,
+  });
+});
+
+// POST /api/admin/feedback/:id/approve - Approve and apply edit live
+app.post('/api/admin/feedback/:id/approve', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+    const item = feedbackStore.find((f) => f.id === id);
+
+    if (!item) {
+      return c.json({ success: false, error: 'Feedback item not found' }, 404);
+    }
+
+    item.status = 'approved';
+
+    // Allow admin to override the correction value with edits before applying
+    const finalValue = body.correctionValue !== undefined ? body.correctionValue : item.correctionValue;
+
+    // Apply to in-memory song catalog
+    const song = songMap.get(item.songId);
+    if (song) {
+      if (item.type === 'artwork') {
+        song.coverUrl = finalValue;
+        song.backdropUrl = finalValue;
+      } else if (item.type === 'lyrics') {
+        if (Array.isArray(finalValue)) {
+          song.lyricsTamil = finalValue;
+        } else if (finalValue && typeof finalValue === 'object') {
+          if (finalValue.tamil) song.lyricsTamil = finalValue.tamil;
+          if (finalValue.tanglish) song.lyricsTanglish = finalValue.tanglish;
+        }
+      }
+      songMap.set(song.id, song);
+      if (song.slug) songMap.set(song.slug, song);
+    }
+
+    return c.json({
+      success: true,
+      message: 'Correction approved and applied live',
+      data: item,
+      song,
+    });
+  } catch (err: any) {
+    return c.json({ success: false, error: err.message || 'Approval failed' }, 500);
+  }
+});
+
+// POST /api/admin/feedback/:id/reject - Reject submission
+app.post('/api/admin/feedback/:id/reject', (c) => {
+  const id = c.req.param('id');
+  const item = feedbackStore.find((f) => f.id === id);
+
+  if (!item) {
+    return c.json({ success: false, error: 'Feedback item not found' }, 404);
   }
 
-  const current = songViews.get(song.id) || 0;
-  songViews.set(song.id, current + 1);
+  item.status = 'rejected';
 
   return c.json({
     success: true,
-    id: song.id,
-    views: current + 1,
+    message: 'Correction rejected',
+    data: item,
   });
 });
 
 export default app;
+
 

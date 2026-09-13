@@ -15,7 +15,9 @@ import {
   Music,
   Users,
   PlayCircle,
-  ChevronRight
+  ChevronRight,
+  HelpCircle,
+  Edit3
 } from 'lucide-react';
 import {
   Song,
@@ -28,6 +30,7 @@ import {
   getArtistPhoto,
 } from '../data';
 import { AdBanner } from './AdBanner';
+import { SongAccuracyModal } from './SongAccuracyModal';
 
 interface SongDetailProps {
   song: Song;
@@ -141,6 +144,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
   const [fontSize, setFontSize] = useState<number>(20);
   const [copied, setCopied] = useState<boolean>(false);
   const [isLiked, setIsLiked] = useState<boolean>(false);
+  const [isAccuracyModalOpen, setIsAccuracyModalOpen] = useState<boolean>(false);
 
   const currentLyrics = useMemo(() => {
     if (language === 'tamil' && hasTamil) return song.lyricsTamil;
@@ -258,8 +262,12 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                     >
                       <Heart className={'w-4 h-4 sm:w-5 sm:h-5 ' + (isLiked ? 'fill-rose-500' : '')} />
                     </button>
-                    <button className='w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-white backdrop-blur-md transition'>
-                      <MoreHorizontal className='w-4 h-4 sm:w-5 sm:h-5' />
+                    <button 
+                      onClick={() => setIsAccuracyModalOpen(true)}
+                      className='w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-white hover:border-pink-500/40 backdrop-blur-md transition group'
+                      title='Something wrong with this image or lyrics? Suggest correction'
+                    >
+                      <Edit3 className='w-4 h-4 text-gray-300 group-hover:text-pink-400' />
                     </button>
                   </div>
                 </div>
@@ -326,8 +334,8 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                   )}
                 </div>
 
-                {/* Language Switcher: Dual Toggle when both exist, or Single Badge when only one exists */}
-                <div className='pt-2'>
+                {/* Language Switcher & Accuracy Action Pill */}
+                <div className='pt-2 flex flex-wrap items-center gap-2.5'>
                   {hasTamil && hasTanglish ? (
                     <div className='inline-flex p-1 rounded-full bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner'>
                       <button
@@ -352,6 +360,15 @@ export const SongDetail: React.FC<SongDetailProps> = ({
                       English / Tanglish Lyrics
                     </span>
                   )}
+
+                  {/* Quick Accuracy Feedback Button */}
+                  <button
+                    onClick={() => setIsAccuracyModalOpen(true)}
+                    className='inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-pink-500/30 text-[11px] font-semibold text-gray-400 hover:text-pink-300 transition'
+                  >
+                    <HelpCircle className='w-3.5 h-3.5 text-pink-400' />
+                    <span>Wrong artwork or lyrics?</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -664,6 +681,13 @@ export const SongDetail: React.FC<SongDetailProps> = ({
 
         </div>
       </div>
+
+      {/* Accuracy Feedback & Correction Modal */}
+      <SongAccuracyModal
+        song={song}
+        isOpen={isAccuracyModalOpen}
+        onClose={() => setIsAccuracyModalOpen(false)}
+      />
 
     </div>
   );
