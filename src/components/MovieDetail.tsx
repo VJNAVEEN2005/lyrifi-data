@@ -138,9 +138,12 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
             {/* Movie Poster */}
             <div className='relative w-48 sm:w-56 md:w-64 aspect-[3/4] flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl border border-white/20 group'>
               <img
-                src={movie.posterUrl || albumSongs[0]?.coverUrl}
+                src={movie.posterUrl || albumSongs[0]?.coverUrl || '/default-cover.svg'}
                 alt={movie.title}
                 className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/default-cover.svg';
+                }}
               />
               <div className='absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60' />
               <div className='absolute bottom-3 left-3 right-3 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-center text-xs font-bold text-white'>
@@ -274,9 +277,12 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
                     {/* Artwork thumbnail */}
                     <div className='w-12 h-12 rounded-xl overflow-hidden bg-white/5 flex-shrink-0 border border-white/10 shadow-sm'>
                       <img
-                        src={song.coverUrl}
+                        src={song.coverUrl || '/default-cover.svg'}
                         alt={song.title}
                         className='w-full h-full object-cover group-hover:scale-110 transition duration-300'
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/default-cover.svg';
+                        }}
                       />
                     </div>
 

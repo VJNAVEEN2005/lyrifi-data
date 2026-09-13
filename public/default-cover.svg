@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#311042" />
+    </linearGradient>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="50%" stop-color="#ec4899" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+  </defs>
+  <rect width="500" height="500" rx="32" fill="url(#bgGrad)" />
+  <circle cx="250" cy="250" r="160" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2" />
+  <circle cx="250" cy="250" r="110" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+  <circle cx="250" cy="250" r="50" fill="#08090c" stroke="url(#logoGrad)" stroke-width="4" />
+  <rect x="200" y="210" width="14" height="80" rx="7" fill="#f43f5e" />
+  <rect x="224" y="175" width="14" height="150" rx="7" fill="#fb7185" />
+  <rect x="248" y="195" width="14" height="110" rx="7" fill="#ec4899" />
+  <rect x="272" y="215" width="14" height="70" rx="7" fill="#c084fc" />
+  <text x="250" y="440" text-anchor="middle" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="22" font-weight="700" letter-spacing="4">LYRIFI SOUNDTRACK</text>
+</svg>

@@ -49,7 +49,7 @@ export const DeepSearchModal: React.FC<DeepSearchModalProps> = ({
             </div>
             <div>
               <h3 className='text-lg font-black tracking-tight'>AI Deep Search & Ingest</h3>
-              <p className='text-xs text-gray-400'>Scrape directly from web archives</p>
+              <p className='text-xs text-gray-400'>Fetch directly from digital archives</p>
             </div>
           </div>
           <button
@@ -98,8 +98,8 @@ export const DeepSearchModal: React.FC<DeepSearchModalProps> = ({
             </div>
             <p className='text-[11px] text-gray-400'>
               {searchType === 'movie'
-                ? 'We will scrape all songs from this movie and add the album to the catalog.'
-                : 'We will scrape the Tamil & Tanglish lyrics for this individual track.'}
+                ? 'We will find and index all songs from this movie and add the album to the catalog.'
+                : 'We will find the Tamil & Tanglish lyrics for this individual track.'}
             </p>
           </div>
 

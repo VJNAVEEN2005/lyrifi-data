@@ -557,8 +557,31 @@ async function fetchCleanArtwork(title: string, movie: string): Promise<string> 
     }
   }
 
-  // Safe royalty-free music image fallback
-  return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=800&auto=format&fit=crop';
+  // Fallback search Deezer API for Tamil movie / song
+  if (cleanMovie && cleanMovie !== 'Tamil Single') {
+    try {
+      const resp = await fetch(
+        `https://api.deezer.com/search/album?q=${encodeURIComponent(cleanMovie)}&limit=1`,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+        }
+      );
+      if (resp.ok) {
+        const data: any = await resp.json();
+        if (data?.data?.length > 0 && data.data[0].cover_big) {
+          return data.data[0].cover_big;
+        }
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  // Clean branded fallback SVG, never external stock photo
+  return '/default-cover.svg';
 }
 
 // POST /api/scrape-on-demand - Real-time AI Deep Search & Ingestion

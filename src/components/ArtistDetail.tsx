@@ -432,7 +432,7 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
               Looking for more songs by {artist.name}?
             </h3>
             <p className='text-xs text-gray-400'>
-              Trigger our automated scraper engine to ingest more songs and lyrics for {artist.name}.
+              Trigger our intelligent search engine to find and add more songs and lyrics for {artist.name}.
             </p>
           </div>
 

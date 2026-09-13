@@ -234,9 +234,12 @@ export const SongDetail: React.FC<SongDetailProps> = ({
               {/* Album Art Card */}
               <div className='relative w-24 h-24 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-[0_15px_40px_rgba(0,0,0,0.8)] shrink-0 border border-white/15 group'>
                 <img 
-                  src={song.coverUrl} 
+                  src={song.coverUrl || '/default-cover.svg'} 
                   alt={song.title} 
                   className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/default-cover.svg';
+                  }}
                 />
               </div>
 

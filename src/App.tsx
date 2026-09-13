@@ -275,8 +275,8 @@ export function App() {
     setIsDeepSearching(true);
     setDeepSearchMessage(
       type === 'movie'
-        ? `Scraping & ingesting all songs from movie "${query}"...`
-        : `Scraping & verifying lyrics for "${query}" across web...`
+        ? `Finding & organizing all songs from movie "${query}"...`
+        : `Searching & verifying lyrics for "${query}" across web...`
     );
     
     try {

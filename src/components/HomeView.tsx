@@ -59,9 +59,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                 <div className='relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-md'>
                   <img
-                    src={song.coverUrl}
+                    src={song.coverUrl || '/default-cover.svg'}
                     alt={song.title}
                     className='w-full h-full object-cover group-hover:scale-105 transition'
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/default-cover.svg';
+                    }}
                   />
                 </div>
 
@@ -111,9 +114,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
             >
               <div className='relative aspect-[3/4] rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-white/5'>
                 <img
-                  src={movie.posterUrl}
+                  src={movie.posterUrl || '/default-cover.svg'}
                   alt={movie.title}
                   className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/default-cover.svg';
+                  }}
                 />
                 <div className='absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-[10px] text-white font-bold'>
                   {movie.trackCount} {movie.trackCount === 1 ? 'Track' : 'Tracks'}

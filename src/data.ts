@@ -208,8 +208,8 @@ export const sampleSongs: Song[] = [
       "Andrea Jeremiah"
     ],
     "lyricist": "Na. Muthukumar",
-    "coverUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800&auto=format&fit=crop",
-    "backdropUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop",
+    "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/5b/1b/55/5b1b5597-2abb-d73e-49e8-fe66a4eabe87/886443235960.jpg/800x800bb.jpg",
+    "backdropUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/5b/1b/55/5b1b5597-2abb-d73e-49e8-fe66a4eabe87/886443235960.jpg/800x800bb.jpg",
     "primaryGlowColor": "#c084fc",
     "secondaryGlowColor": "#f43f5e",
     "duration": "6:38",
@@ -251,8 +251,8 @@ export const sampleSongs: Song[] = [
       "Dhee"
     ],
     "lyricist": "Yugabharathi",
-    "coverUrl": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=800&auto=format&fit=crop",
-    "backdropUrl": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1600&auto=format&fit=crop",
+    "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/71/33/ea/7133ea3b-4251-9ce1-a51e-0dffa88620c9/191773239305.jpg/800x800bb.jpg",
+    "backdropUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/71/33/ea/7133ea3b-4251-9ce1-a51e-0dffa88620c9/191773239305.jpg/800x800bb.jpg",
     "primaryGlowColor": "#0284c7",
     "secondaryGlowColor": "#38bdf8",
     "duration": "4:12",
@@ -286,8 +286,8 @@ export const sampleSongs: Song[] = [
       "Sublahshini"
     ],
     "lyricist": "Vishnu Edavan",
-    "coverUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop",
-    "backdropUrl": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1600&auto=format&fit=crop",
+    "coverUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/5c/6f/07/5c6f07b3-173c-31ef-a2eb-cd23548a71d7/199538267020.jpg/800x800bb.jpg",
+    "backdropUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/5c/6f/07/5c6f07b3-173c-31ef-a2eb-cd23548a71d7/199538267020.jpg/800x800bb.jpg",
     "primaryGlowColor": "#f59e0b",
     "secondaryGlowColor": "#ef4444",
     "duration": "3:48",
@@ -316,42 +316,42 @@ export const sampleMovies: MovieAlbum[] = [
     "id": "coolie",
     "title": "Coolie",
     "year": 2025,
-    "posterUrl": "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=600&auto=format&fit=crop",
+    "posterUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/c6/49/b3/c649b3aa-21de-1541-e346-8b5683e5f2b3/194646005267.png/800x800bb.jpg",
     "trackCount": 6
   },
   {
     "id": "thug-life",
     "title": "Thug Life",
     "year": 2025,
-    "posterUrl": "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=600&auto=format&fit=crop",
+    "posterUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/da/91/75/mzi.fyfplbwi.jpg/800x800bb.jpg",
     "trackCount": 5
   },
   {
     "id": "kuberaa",
     "title": "Kuberaa",
     "year": 2025,
-    "posterUrl": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop",
+    "posterUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/f4/9e/4a/f49e4ac8-51c9-544b-3ab0-e1cd0f29a578/cover.jpg/800x800bb.jpg",
     "trackCount": 4
   },
   {
     "id": "good-bad-ugly",
     "title": "Good Bad Ugly",
     "year": 2025,
-    "posterUrl": "https://images.unsplash.com/photo-1574267432553-4b4628081c31?q=80&w=600&auto=format&fit=crop",
+    "posterUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/47/03/4c/47034c71-831b-61a2-8cc2-502f927834bd/196873057620.jpg/800x800bb.jpg",
     "trackCount": 5
   },
   {
     "id": "dragon",
     "title": "Dragon",
     "year": 2025,
-    "posterUrl": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=600&auto=format&fit=crop",
+    "posterUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/49/84/ad/4984ad2c-3c84-1f75-1785-a63ef0bc770e/67010.jpg/800x800bb.jpg",
     "trackCount": 4
   },
   {
     "id": "vidaamuyarchi",
     "title": "Vidaamuyarchi",
     "year": 2025,
-    "posterUrl": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=600&auto=format&fit=crop",
+    "posterUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/11/26/6e/11266e7f-4079-9591-101a-77ae202589c9/196872810776.jpg/800x800bb.jpg",
     "trackCount": 5
   }
 ];
