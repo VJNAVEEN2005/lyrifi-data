@@ -20,10 +20,52 @@ export function App() {
     return Array.from(map.values());
   }, []);
 
-  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-  const [currentPlayingSong, setCurrentPlayingSong] = useState<Song>(allAvailableSongs[0]);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(() => {
+    // Initial deep-link check from URL path on first load / refresh
+    const path = window.location.pathname;
+    const songMatch = path.match(/^\/song\/([a-zA-Z0-9_-]+)/);
+    if (songMatch) {
+      const slugOrId = songMatch[1];
+      const found = allAvailableSongs.find((s) => s.slug === slugOrId || s.id === slugOrId);
+      if (found) return found;
+    }
+    return null;
+  });
+  const [currentPlayingSong, setCurrentPlayingSong] = useState<Song>(() => {
+    // If a song was deep-linked, set it as current playing, otherwise default to first
+    const path = window.location.pathname;
+    const songMatch = path.match(/^\/song\/([a-zA-Z0-9_-]+)/);
+    if (songMatch) {
+      const slugOrId = songMatch[1];
+      const found = allAvailableSongs.find((s) => s.slug === slugOrId || s.id === slugOrId);
+      if (found) return found;
+    }
+    return allAvailableSongs[0];
+  });
   const [activeTab, setActiveTab] = useState<'home' | 'trending' | 'movies' | 'artists' | 'charts'>('home');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Handle browser Back / Forward buttons (popstate)
+  React.useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const songMatch = path.match(/^\/song\/([a-zA-Z0-9_-]+)/);
+      if (songMatch) {
+        const slugOrId = songMatch[1];
+        const found = allAvailableSongs.find((s) => s.slug === slugOrId || s.id === slugOrId);
+        if (found) {
+          setSelectedSong(found);
+          setCurrentPlayingSong(found);
+          return;
+        }
+      }
+      // If returning to home
+      setSelectedSong(null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [allAvailableSongs]);
 
   // Filter songs based on live search query
   const filteredSongs = useMemo(() => {
@@ -42,6 +84,19 @@ export function App() {
   const handleSelectSong = (song: Song) => {
     setSelectedSong(song);
     setCurrentPlayingSong(song);
+    // Push new clean song URL into browser address bar
+    const targetPath = `/song/${song.slug || song.id}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ slug: song.slug || song.id }, '', targetPath);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleGoHome = () => {
+    setSelectedSong(null);
+    if (window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -53,7 +108,7 @@ export function App() {
         onTabChange={setActiveTab}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onHomeClick={() => setSelectedSong(null)}
+        onHomeClick={handleGoHome}
       />
 
       {/* Main View Router */}
@@ -61,7 +116,7 @@ export function App() {
         {selectedSong ? (
           <SongDetail
             song={selectedSong}
-            onBack={() => setSelectedSong(null)}
+            onBack={handleGoHome}
             onSelectSong={handleSelectSong}
             allSongs={allAvailableSongs}
           />
