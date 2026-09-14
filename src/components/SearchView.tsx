@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Song, MovieAlbum, Artist, normalizeArtistSlug } from '../data';
 import { BackendSearchResults } from '../services/api';
+import { calculateFuzzyScore } from '../services/fuzzySearch';
 import { DeepSearchModal } from './DeepSearchModal';
 
 interface SearchViewProps {
@@ -79,37 +80,57 @@ export const SearchView: React.FC<SearchViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Compute live recommendations for autocomplete while typing
+  // Compute live recommendations for autocomplete while typing with typo tolerance
   const trimmed = localInput.trim().toLowerCase();
   const recommendations = useMemo(() => {
     if (!trimmed) return { songs: [], movies: [], artists: [] };
 
-    const matchedS = songs
-      .filter(
-        (s) =>
-          s.title.toLowerCase().includes(trimmed) ||
-          s.movie.toLowerCase().includes(trimmed) ||
-          s.composer.toLowerCase().includes(trimmed) ||
-          s.singers.some((singer) => singer.toLowerCase().includes(trimmed))
-      )
-      .slice(0, 4);
+    const scoredS: Array<{ song: Song; score: number }> = [];
+    songs.forEach((s) => {
+      let score = Math.max(
+        calculateFuzzyScore(trimmed, s.title),
+        calculateFuzzyScore(trimmed, s.movie),
+        calculateFuzzyScore(trimmed, s.composer)
+      );
+      if (s.singers) {
+        for (const singer of s.singers) {
+          score = Math.max(score, calculateFuzzyScore(trimmed, singer));
+        }
+      }
+      if (score >= 40) {
+        scoredS.push({ song: s, score });
+      }
+    });
+    scoredS.sort((a, b) => b.score - a.score);
+    const matchedS = scoredS.slice(0, 4).map((item) => item.song);
 
-    const matchedM = movies
-      .filter((m) => m.title.toLowerCase().includes(trimmed))
-      .slice(0, 3);
+    const scoredM: Array<{ movie: MovieAlbum; score: number }> = [];
+    movies.forEach((m) => {
+      const score = calculateFuzzyScore(trimmed, m.title);
+      if (score >= 40) {
+        scoredM.push({ movie: m, score });
+      }
+    });
+    scoredM.sort((a, b) => b.score - a.score);
+    const matchedM = scoredM.slice(0, 3).map((item) => item.movie);
 
-    const matchedA: Artist[] = [];
+    const scoredA: Array<{ artist: Artist; score: number }> = [];
     const seenArtists = new Set<string>();
     for (const a of artists) {
-      if (a.name.toLowerCase().includes(trimmed)) {
-        const canonical = normalizeArtistSlug(a.id || a.name);
-        if (!seenArtists.has(canonical)) {
+      const canonical = normalizeArtistSlug(a.id || a.name);
+      if (!seenArtists.has(canonical)) {
+        const score = Math.max(
+          calculateFuzzyScore(trimmed, a.name),
+          calculateFuzzyScore(trimmed, canonical.replace(/-/g, ' '))
+        );
+        if (score >= 45) {
           seenArtists.add(canonical);
-          matchedA.push(a);
-          if (matchedA.length >= 2) break;
+          scoredA.push({ artist: a, score });
         }
       }
     }
+    scoredA.sort((a, b) => b.score - a.score);
+    const matchedA = scoredA.slice(0, 2).map((item) => item.artist);
 
     return { songs: matchedS, movies: matchedM, artists: matchedA };
   }, [trimmed, songs, movies, artists]);
@@ -123,31 +144,65 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const q = searchQuery.toLowerCase().trim();
   const localMatchedSongs = useMemo(() => {
     if (!q) return [];
-    return songs.filter((s) => {
-      const matchText =
-        s.title.toLowerCase().includes(q) ||
-        s.movie.toLowerCase().includes(q) ||
-        s.composer.toLowerCase().includes(q) ||
-        s.lyricist.toLowerCase().includes(q) ||
-        s.singers.some((sing) => sing.toLowerCase().includes(q));
-
+    const scored: Array<{ song: Song; score: number }> = [];
+    songs.forEach((s) => {
       const matchYear = selectedYear === 'all' || String(s.year) === selectedYear;
-      return matchText && matchYear;
+      if (!matchYear) return;
+
+      let score = Math.max(
+        calculateFuzzyScore(q, s.title),
+        calculateFuzzyScore(q, s.movie),
+        calculateFuzzyScore(q, s.composer),
+        s.lyricist ? calculateFuzzyScore(q, s.lyricist) : 0
+      );
+      if (s.singers) {
+        for (const singer of s.singers) {
+          score = Math.max(score, calculateFuzzyScore(q, singer));
+        }
+      }
+      if (score >= 40) {
+        scored.push({ song: s, score });
+      }
     });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((item) => item.song);
   }, [q, songs, selectedYear]);
 
   const localMatchedMovies = useMemo(() => {
     if (!q) return [];
-    return movies.filter((m) => {
-      const matchText = m.title.toLowerCase().includes(q);
+    const scored: Array<{ movie: MovieAlbum; score: number }> = [];
+    movies.forEach((m) => {
       const matchYear = selectedYear === 'all' || String(m.year) === selectedYear;
-      return matchText && matchYear;
+      if (!matchYear) return;
+
+      const score = calculateFuzzyScore(q, m.title);
+      if (score >= 40) {
+        scored.push({ movie: m, score });
+      }
     });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((item) => item.movie);
   }, [q, movies, selectedYear]);
 
   const localMatchedArtists = useMemo(() => {
     if (!q) return [];
-    return artists.filter((a) => a.name.toLowerCase().includes(q));
+    const scored: Array<{ artist: Artist; score: number }> = [];
+    const seen = new Set<string>();
+    artists.forEach((a) => {
+      const canonical = normalizeArtistSlug(a.id || a.name);
+      if (!seen.has(canonical)) {
+        const score = Math.max(
+          calculateFuzzyScore(q, a.name),
+          calculateFuzzyScore(q, canonical.replace(/-/g, ' '))
+        );
+        if (score >= 45) {
+          seen.add(canonical);
+          scored.push({ artist: a, score });
+        }
+      }
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((item) => item.artist);
   }, [q, artists]);
 
   // Actual display results: prefer verified backend results
@@ -509,7 +564,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
       ) : searchQuery.trim() ? (
         <div className='space-y-10'>
           
-          {/* ZERO RESULTS / DEEP SEARCH BANNER */}
+          {/* ZERO RESULTS BANNER */}
           {matchedSongs.length === 0 && matchedMovies.length === 0 && matchedArtists.length === 0 && (
             <div className='rounded-3xl border border-white/10 bg-[#12141c]/90 p-8 sm:p-12 text-center max-w-2xl mx-auto space-y-5 shadow-2xl backdrop-blur-xl'>
               <div className='w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(244,63,94,0.3)]'>
@@ -531,6 +586,34 @@ export const SearchView: React.FC<SearchViewProps> = ({
               >
                 <Sparkles className='w-4 h-4 text-pink-200' />
                 <span>Deep Search & Ingest &quot;{searchQuery}&quot;</span>
+              </button>
+            </div>
+          )}
+
+          {/* LOW RESULTS HELPER BANNER (< 5 results in database) */}
+          {(matchedSongs.length + matchedMovies.length + matchedArtists.length) > 0 &&
+           (matchedSongs.length + matchedMovies.length + matchedArtists.length) < 5 && (
+            <div className='rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 max-w-3xl mx-auto shadow-lg'>
+              <div className='flex items-center gap-3 text-center sm:text-left'>
+                <div className='w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0'>
+                  <Sparkles className='w-5 h-5' />
+                </div>
+                <div>
+                  <div className='text-sm font-bold text-white'>
+                    Only {matchedSongs.length + matchedMovies.length + matchedArtists.length} relevant items found for &quot;{searchQuery}&quot;
+                  </div>
+                  <div className='text-xs text-gray-400'>
+                    Looking for more songs or the full soundtrack album? Ingest complete tracks with Deep Search.
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDeepSearchModalOpen(true)}
+                disabled={isDeepSearching}
+                className='px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white text-xs font-bold shrink-0 transition active:scale-95 flex items-center gap-1.5 shadow-md'
+              >
+                <Sparkles className='w-3.5 h-3.5' />
+                <span>Deep Search &quot;{searchQuery}&quot;</span>
               </button>
             </div>
           )}

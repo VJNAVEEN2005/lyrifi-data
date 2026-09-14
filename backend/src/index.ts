@@ -189,6 +189,102 @@ const toSlug = (str: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
+// Phonetic & Fuzzy Search matching functions for typo tolerance
+function normalizePhonetic(text: string): string {
+  if (!text) return '';
+  let s = text.toLowerCase().trim();
+  s = s.replace(/[^a-z0-9\s]/g, '');
+  s = s.replace(/([a-z])\1+/g, '$1');
+  s = s.replace(/th/g, 't').replace(/dh/g, 't').replace(/d/g, 't');
+  s = s.replace(/ph/g, 'f');
+  s = s.replace(/ee/g, 'i').replace(/ea/g, 'i').replace(/y/g, 'i');
+  s = s.replace(/oo/g, 'u');
+  s = s.replace(/kh/g, 'k').replace(/c/g, 'k').replace(/q/g, 'k').replace(/g/g, 'k');
+  s = s.replace(/zh/g, 'l').replace(/sh/g, 's').replace(/z/g, 's');
+  return s.trim();
+}
+
+function levenshteinDistance(s1: string, s2: string): number {
+  if (s1 === s2) return 0;
+  if (!s1.length) return s2.length;
+  if (!s2.length) return s1.length;
+
+  let prev = Array.from({ length: s2.length + 1 }, (_, i) => i);
+  let curr = new Array(s2.length + 1);
+
+  for (let i = 0; i < s1.length; i++) {
+    curr[0] = i + 1;
+    for (let j = 0; j < s2.length; j++) {
+      const cost = s1[i] === s2[j] ? 0 : 1;
+      curr[j + 1] = Math.min(
+        curr[j] + 1,
+        prev[j + 1] + 1,
+        prev[j] + cost
+      );
+    }
+    prev = [...curr];
+  }
+  return prev[s2.length];
+}
+
+function calculateFuzzyScore(query: string, target: string): number {
+  const qRaw = (query || '').toLowerCase().trim();
+  const tRaw = (target || '').toLowerCase().trim();
+  if (!qRaw || !tRaw) return 0;
+
+  if (qRaw === tRaw) return 100;
+  if (tRaw.startsWith(qRaw)) return 90;
+  if (tRaw.includes(qRaw)) return 80;
+
+  const qNorm = normalizePhonetic(qRaw);
+  const tNorm = normalizePhonetic(tRaw);
+  if (!qNorm || !tNorm) return 0;
+
+  if (qNorm === tNorm) return 85;
+  if (tNorm.startsWith(qNorm)) return 75;
+  if (tNorm.includes(qNorm)) return 70;
+
+  const qWords = qNorm.split(/\s+/).filter(Boolean);
+  const tWords = tNorm.split(/\s+/).filter(Boolean);
+
+  let matchedWordCount = 0;
+  for (const qw of qWords) {
+    for (const tw of tWords) {
+      if (qw === tw) {
+        matchedWordCount++;
+        break;
+      }
+      if (qw.length >= 3 && tw.length >= 3) {
+        if (qw.includes(tw) || (tw.length >= 4 && tw.includes(qw))) {
+          matchedWordCount++;
+          break;
+        }
+        const dist = levenshteinDistance(qw, tw);
+        const maxAllowed = qw.length <= 5 ? 1 : 2;
+        if (dist <= maxAllowed) {
+          matchedWordCount++;
+          break;
+        }
+      }
+    }
+  }
+
+  if (qWords.length > 0 && matchedWordCount === qWords.length) {
+    return 65;
+  }
+
+  if (qWords.length === 1 && tWords.length === 1) {
+    const dist = levenshteinDistance(qNorm, tNorm);
+    const maxLen = Math.max(qNorm.length, tNorm.length);
+    const threshold = maxLen <= 4 ? 1 : maxLen <= 7 ? 2 : 3;
+    if (dist <= threshold) {
+      return Math.max(40, 60 - dist * 5);
+    }
+  }
+
+  return 0;
+}
+
 const app = new Hono();
 
 // Enable CORS for frontend client
@@ -263,45 +359,69 @@ app.get('/api/songs', (c) => {
   });
 });
 
-// GET /api/search - Sub-millisecond indexed search with full song, movie & artist matching
+// GET /api/search - Sub-millisecond indexed search with full fuzzy song, movie & artist matching
 app.get('/api/search', async (c) => {
   const q = c.req.query('q')?.toLowerCase().trim() || '';
   if (!q) {
     return c.json({ success: true, count: 0, results: [], songs: [], movies: [], artists: [] });
   }
 
-  // 1. Matched songs
-  const matchedSongs = songs.filter(
-    (s) =>
-      s.title.toLowerCase().includes(q) ||
-      s.movie.toLowerCase().includes(q) ||
-      s.composer.toLowerCase().includes(q) ||
-      s.lyricist.toLowerCase().includes(q) ||
-      s.singers.some((singer) => singer.toLowerCase().includes(q))
-  );
+  // 1. Matched songs with fuzzy scoring and ranking
+  const scoredSongs: Array<{ song: Song; score: number }> = [];
+  songs.forEach((s) => {
+    let maxScore = 0;
+    const titleScore = calculateFuzzyScore(q, s.title);
+    const movieScore = calculateFuzzyScore(q, s.movie);
+    const compScore = calculateFuzzyScore(q, s.composer);
+    maxScore = Math.max(maxScore, titleScore, movieScore, compScore);
+
+    if (s.singers && s.singers.length > 0) {
+      for (const singer of s.singers) {
+        maxScore = Math.max(maxScore, calculateFuzzyScore(q, singer));
+      }
+    }
+    if (s.lyricist) {
+      maxScore = Math.max(maxScore, calculateFuzzyScore(q, s.lyricist));
+    }
+
+    if (maxScore >= 40) {
+      scoredSongs.push({ song: s, score: maxScore });
+    }
+  });
+
+  scoredSongs.sort((a, b) => b.score - a.score);
+  const matchedSongs = scoredSongs.map((item) => item.song);
 
   // 2. Matched movie albums (keyed by title + year to prevent collisions across releases)
-  const movieMap = new Map<string, { id: string; title: string; year: number; posterUrl: string; trackCount: number; movieUrl?: string }>();
+  const movieMap = new Map<string, { id: string; title: string; year: number; posterUrl: string; trackCount: number; movieUrl?: string; score: number }>();
   songs.forEach((s) => {
-    if (s.movie && s.movie.toLowerCase().includes(q)) {
-      const key = `${s.movie.toLowerCase().trim()}_${s.year || ''}`;
-      if (!movieMap.has(key)) {
-        movieMap.set(key, {
-          id: `${s.movie.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')}_${s.year || 'album'}`,
-          title: s.movie,
-          year: s.year || 2024,
-          posterUrl: s.coverUrl,
-          trackCount: 1,
-        });
-      } else {
-        const item = movieMap.get(key)!;
-        item.trackCount += 1;
+    if (s.movie) {
+      const score = calculateFuzzyScore(q, s.movie);
+      if (score >= 40) {
+        const key = `${s.movie.toLowerCase().trim()}_${s.year || ''}`;
+        if (!movieMap.has(key)) {
+          movieMap.set(key, {
+            id: `${s.movie.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')}_${s.year || 'album'}`,
+            title: s.movie,
+            year: s.year || 2024,
+            posterUrl: s.coverUrl,
+            trackCount: 1,
+            score,
+          });
+        } else {
+          const item = movieMap.get(key)!;
+          item.trackCount += 1;
+          item.score = Math.max(item.score, score);
+        }
       }
     }
   });
 
-  // If local movie matches are low and query is at least 2 chars, discover online candidate movies
-  if (q.length >= 2) {
+  // Calculate total relevant data items currently in database
+  const currentTotalMatches = matchedSongs.length + movieMap.size;
+
+  // 3. Auto-Scrape & Ingest if database has fewer than 5 relevant matches!
+  if (currentTotalMatches < 5 && q.length >= 2) {
     let onlineCandidates = discoveredMoviesCache.get(q);
     if (!onlineCandidates) {
       try {
@@ -356,44 +476,76 @@ app.get('/api/search', async (c) => {
             posterUrl: cand.posterUrl,
             trackCount: cand.trackCount,
             movieUrl: cand.movieUrl,
+            score: 75,
           });
         }
       });
     }
   }
 
-  // 3. Matched artists (deduplicated by canonical slug, including composers & singers)
-  const artistMap = new Map<string, { id: string; name: string; role: string; imageUrl: string }>();
+  // Sort movies by score descending
+  const sortedMovies = Array.from(movieMap.values())
+    .sort((a, b) => b.score - a.score)
+    .map(({ score, ...m }) => m);
+
+  // 4. Matched artists (deduplicated by canonical slug, including composers & singers with fuzzy scoring)
+  const artistMap = new Map<string, { id: string; name: string; role: string; imageUrl: string; score: number }>();
   songs.forEach((s) => {
     // Check composer
-    if (s.composer && s.composer.toLowerCase().includes(q)) {
+    if (s.composer) {
       const canonicalKey = normalizeArtistSlug(s.composer);
-      if (!artistMap.has(canonicalKey)) {
-        const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || s.composer;
-        artistMap.set(canonicalKey, {
-          id: canonicalKey,
-          name: displayName,
-          role: 'Music Director',
-          imageUrl: knownPortraits[canonicalKey] || `/artists/${canonicalKey}.jpg`,
-        });
+      const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || s.composer;
+      const score = Math.max(
+        calculateFuzzyScore(q, s.composer),
+        calculateFuzzyScore(q, displayName),
+        calculateFuzzyScore(q, canonicalKey.replace(/-/g, ' '))
+      );
+      if (score >= 45) {
+        if (!artistMap.has(canonicalKey)) {
+          artistMap.set(canonicalKey, {
+            id: canonicalKey,
+            name: displayName,
+            role: 'Music Director',
+            imageUrl: knownPortraits[canonicalKey] || `/artists/${canonicalKey}.jpg`,
+            score,
+          });
+        } else {
+          const item = artistMap.get(canonicalKey)!;
+          item.score = Math.max(item.score, score);
+        }
       }
     }
     // Check singers
     s.singers?.forEach((singer) => {
-      if (singer && singer.toLowerCase().includes(q)) {
+      if (singer) {
         const canonicalKey = normalizeArtistSlug(singer);
-        if (!artistMap.has(canonicalKey)) {
-          const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || singer;
-          artistMap.set(canonicalKey, {
-            id: canonicalKey,
-            name: displayName,
-            role: 'Playback Singer',
-            imageUrl: knownPortraits[canonicalKey] || `/artists/${canonicalKey}.jpg`,
-          });
+        const displayName = CANONICAL_ARTIST_NAMES[canonicalKey] || singer;
+        const score = Math.max(
+          calculateFuzzyScore(q, singer),
+          calculateFuzzyScore(q, displayName),
+          calculateFuzzyScore(q, canonicalKey.replace(/-/g, ' '))
+        );
+        if (score >= 45) {
+          if (!artistMap.has(canonicalKey)) {
+            artistMap.set(canonicalKey, {
+              id: canonicalKey,
+              name: displayName,
+              role: 'Playback Singer',
+              imageUrl: knownPortraits[canonicalKey] || `/artists/${canonicalKey}.jpg`,
+              score,
+            });
+          } else {
+            const item = artistMap.get(canonicalKey)!;
+            item.score = Math.max(item.score, score);
+          }
         }
       }
     });
   });
+
+  const sortedArtists = Array.from(artistMap.values())
+    .sort((a, b) => b.score - a.score)
+    .map(({ score, ...a }) => a);
 
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
 
@@ -403,8 +555,8 @@ app.get('/api/search', async (c) => {
     count: matchedSongs.length,
     results: matchedSongs,
     songs: matchedSongs,
-    movies: Array.from(movieMap.values()),
-    artists: Array.from(artistMap.values()),
+    movies: sortedMovies,
+    artists: sortedArtists,
   });
 });
 
@@ -940,12 +1092,15 @@ function parseMovieCandidatesFromSearchHtml(
     const titleLower = cleanTitle.toLowerCase();
     const slugLower = slug.toLowerCase();
 
-    // Keep candidate if slug or title matches query
-    if (
+    // Keep candidate if slug or title matches query directly or phonetically with fuzzy tolerance
+    const fuzzyTitleScore = calculateFuzzyScore(query, cleanTitle);
+    const fuzzySlugScore = calculateFuzzyScore(query, slug.replace(/-/g, ' '));
+    const isDirectMatch =
       slugLower.includes(qLower) ||
       titleLower.includes(qLower) ||
-      qLower.includes(slugLower)
-    ) {
+      qLower.includes(slugLower);
+
+    if (isDirectMatch || fuzzyTitleScore >= 50 || fuzzySlugScore >= 50) {
       candidates.push({
         slug,
         title: cleanTitle,

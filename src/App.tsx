@@ -28,6 +28,7 @@ import {
   fetchClientAppleMusicArtwork,
   BackendSearchResults 
 } from './services/api';
+import { calculateFuzzyScore } from './services/fuzzySearch';
 import { Heart, Sparkles } from 'lucide-react';
 import { useAnimatedFavicon } from './hooks/useAnimatedFavicon';
 
@@ -312,16 +313,32 @@ export function App() {
         setBackendResults(results);
       } else {
         // Fallback to local catalog if backend is offline
-        const qLower = trimmed.toLowerCase();
-        const localSongs = allAvailableSongs.filter(
-          (s) =>
-            s.title.toLowerCase().includes(qLower) ||
-            s.movie.toLowerCase().includes(qLower) ||
-            s.composer.toLowerCase().includes(qLower) ||
-            s.singers.some((singer) => singer.toLowerCase().includes(qLower))
-        );
-        const localMovies = dynamicMovieAlbums.filter((m) => m.title.toLowerCase().includes(qLower));
-        const localArtists = dynamicArtists.filter((a) => a.name.toLowerCase().includes(qLower));
+        const localSongs = allAvailableSongs
+          .map((s) => {
+            const score = Math.max(
+              calculateFuzzyScore(trimmed, s.title),
+              calculateFuzzyScore(trimmed, s.movie),
+              calculateFuzzyScore(trimmed, s.composer),
+              s.singers ? Math.max(...s.singers.map((sing) => calculateFuzzyScore(trimmed, sing))) : 0
+            );
+            return { s, score };
+          })
+          .filter((item) => item.score >= 40)
+          .sort((a, b) => b.score - a.score)
+          .map((item) => item.s);
+
+        const localMovies = dynamicMovieAlbums
+          .map((m) => ({ m, score: calculateFuzzyScore(trimmed, m.title) }))
+          .filter((item) => item.score >= 40)
+          .sort((a, b) => b.score - a.score)
+          .map((item) => item.m);
+
+        const localArtists = dynamicArtists
+          .map((a) => ({ a, score: calculateFuzzyScore(trimmed, a.name) }))
+          .filter((item) => item.score >= 45)
+          .sort((a, b) => b.score - a.score)
+          .map((item) => item.a);
+
         setBackendResults({ songs: localSongs, movies: localMovies, artists: localArtists });
       }
     } catch {
