@@ -30,6 +30,7 @@ import {
   getArtistPhoto,
 } from '../data';
 import { SongAccuracyModal } from './SongAccuracyModal';
+import { fetchClientAppleMusicArtwork } from '../services/api';
 
 interface SongDetailProps {
   song: Song;
@@ -145,6 +146,67 @@ export const SongDetail: React.FC<SongDetailProps> = ({
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [isAccuracyModalOpen, setIsAccuracyModalOpen] = useState<boolean>(false);
 
+  // High-res Apple Music artwork resolution with localStorage caching
+  const [resolvedCover, setResolvedCover] = useState<string>(() => {
+    if (song.coverUrl && !song.coverUrl.includes('default-cover')) {
+      return song.coverUrl;
+    }
+    const cleanMovie = (song.movie || '').toLowerCase().trim();
+    const cleanTitle = (song.title || '').toLowerCase().trim();
+    try {
+      const cached =
+        localStorage.getItem(`lyrifi_apple_art_${cleanTitle}`) ||
+        localStorage.getItem(`lyrifi_apple_art_${cleanMovie}`) ||
+        localStorage.getItem(`lyrifi_poster_${slugifyMovieTitle(song.movie)}`);
+      if (cached) return cached;
+    } catch {}
+    return song.coverUrl || '/default-cover.svg';
+  });
+
+  useEffect(() => {
+    if (song.coverUrl && !song.coverUrl.includes('default-cover')) {
+      setResolvedCover(song.coverUrl);
+      return;
+    }
+
+    const cleanMovie = (song.movie || '').toLowerCase().trim();
+    const cleanTitle = (song.title || '').toLowerCase().trim();
+
+    try {
+      const cached =
+        localStorage.getItem(`lyrifi_apple_art_${cleanTitle}`) ||
+        localStorage.getItem(`lyrifi_apple_art_${cleanMovie}`) ||
+        localStorage.getItem(`lyrifi_poster_${slugifyMovieTitle(song.movie)}`);
+      if (cached) {
+        setResolvedCover(cached);
+        return;
+      }
+    } catch {}
+
+    // Resolve official Apple Music artwork on the fly
+    const query = song.movie && song.movie !== 'Tamil Song' && song.movie !== 'Tamil Single'
+      ? `${song.title} ${song.movie}`
+      : song.title;
+
+    fetchClientAppleMusicArtwork(query, song.year).then((art) => {
+      if (art) {
+        setResolvedCover(art);
+        try {
+          localStorage.setItem(`lyrifi_apple_art_${cleanTitle}`, art);
+          if (song.movie) {
+            localStorage.setItem(`lyrifi_apple_art_${cleanMovie}`, art);
+          }
+        } catch {}
+      } else if (song.movie && song.movie !== 'Tamil Song') {
+        fetchClientAppleMusicArtwork(song.movie, song.year).then((movieArt) => {
+          if (movieArt) {
+            setResolvedCover(movieArt);
+          }
+        });
+      }
+    });
+  }, [song.id, song.coverUrl, song.title, song.movie, song.year]);
+
   const currentLyrics = useMemo(() => {
     if (language === 'tamil' && hasTamil) return song.lyricsTamil;
     if (language === 'tanglish' && hasTanglish) return song.lyricsTanglish;
@@ -197,7 +259,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
           className='absolute top-14 md:top-13 left-1/2 xl:left-[48.5%] w-[300px] sm:w-[380px] md:w-[500px] xl:w-[40%] aspect-square rounded-3xl overflow-hidden bg-cover bg-center bg-no-repeat transition-all duration-700 pointer-events-none shadow-[0_25px_60px_rgba(0,0,0,0.85)] border border-white/10'
           style={{ 
             transform: 'translateX(-50%)',
-            backgroundImage: 'url(' + song.coverUrl + ')',
+            backgroundImage: 'url(' + (resolvedCover || song.coverUrl) + ')',
             filter: 'blur(4px) brightness(0.4) saturate(1.35)',
             opacity: 0.88
           }}
@@ -237,7 +299,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({
               {/* Album Art Card */}
               <div className='relative w-24 h-24 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-[0_15px_40px_rgba(0,0,0,0.8)] shrink-0 border border-white/15 group'>
                 <img 
-                  src={song.coverUrl || '/default-cover.svg'} 
+                  src={resolvedCover || song.coverUrl || '/default-cover.svg'} 
                   alt={song.title} 
                   className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
                   onError={(e) => {

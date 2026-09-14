@@ -201,6 +201,8 @@ function normalizePhonetic(text: string): string {
   s = s.replace(/oo/g, 'u');
   s = s.replace(/kh/g, 'k').replace(/c/g, 'k').replace(/q/g, 'k').replace(/g/g, 'k');
   s = s.replace(/zh/g, 'l').replace(/sh/g, 's').replace(/z/g, 's');
+  // Tamil/Indian r/l interchange (e.g., choran vs chozhan vs cholan)
+  s = s.replace(/r/g, 'l');
   return s.trim();
 }
 
@@ -1675,32 +1677,57 @@ app.post('/api/scrape-on-demand', async (c) => {
         });
       }
 
-      const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(query)}`;
-      const searchResp = await fetch(searchUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        },
-      });
+      // Build search variations including phonetic normalization to find songs even with typos
+      const searchVariations = [
+        query,
+        query.replace(/choran/gi, 'chozhan').replace(/cholan/gi, 'chozhan'),
+        query.replace(/chozhan/gi, 'cholan'),
+        query.replace(/song\s*lyrics/gi, '').trim(),
+      ];
 
-      if (!searchResp.ok) {
-        if (existing) {
-          return c.json({
-            success: true,
-            type: 'song',
-            source: 'cache',
-            song: existing,
-            songs: [existing],
-          });
+      // Also try querying iTunes if it finds a more canonical Tamil song title
+      try {
+        const itunesResp = await fetch(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=3`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' } }
+        );
+        if (itunesResp.ok) {
+          const itunesData: any = await itunesResp.json();
+          if (itunesData?.results?.length > 0) {
+            for (const item of itunesData.results) {
+              if (item.trackName) searchVariations.push(item.trackName);
+            }
+          }
         }
-        return c.json({ success: false, error: 'Search archive unreachable' }, 502);
+      } catch {}
+
+      const uniqueVariations = Array.from(new Set(searchVariations.filter(Boolean)));
+      let linkMatch: RegExpMatchArray | null = null;
+      let matchedSearchText = query;
+
+      for (const sVar of uniqueVariations) {
+        try {
+          const searchUrl = `https://www.tamil2lyrics.com/?s=${encodeURIComponent(sVar)}`;
+          const searchResp = await fetch(searchUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            },
+          });
+
+          if (searchResp.ok) {
+            const html = await searchResp.text();
+            linkMatch =
+              html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+-song-lyrics\/?)["']/i) ||
+              html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+\/?)["']/i);
+
+            if (linkMatch) {
+              matchedSearchText = sVar;
+              break;
+            }
+          }
+        } catch {}
       }
-
-      const html = await searchResp.text();
-
-      const linkMatch =
-        html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+-song-lyrics\/?)["']/i) ||
-        html.match(/href=["'](https?:\/\/(?:www\.)?tamil2lyrics\.com\/lyrics\/[a-zA-Z0-9_-]+\/?)["']/i);
 
       if (!linkMatch) {
         if (existing) {
@@ -1729,6 +1756,15 @@ app.post('/api/scrape-on-demand', async (c) => {
           });
         }
         return c.json({ success: false, error: 'Failed to parse song lyrics' }, 502);
+      }
+
+      // Guarantee authentic high-resolution Apple Music artwork
+      if (!newSong.coverUrl || newSong.coverUrl.includes('default-cover')) {
+        const art = await fetchCleanArtwork(newSong.title, newSong.movie, newSong.composer);
+        if (art && !art.includes('default-cover')) {
+          newSong.coverUrl = art;
+          newSong.backdropUrl = art;
+        }
       }
 
       if (!songMap.has(newSong.id)) {

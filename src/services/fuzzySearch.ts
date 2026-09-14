@@ -18,6 +18,8 @@ export function normalizePhonetic(text: string): string {
   s = s.replace(/oo/g, 'u');
   s = s.replace(/kh/g, 'k').replace(/c/g, 'k').replace(/q/g, 'k').replace(/g/g, 'k');
   s = s.replace(/zh/g, 'l').replace(/sh/g, 's').replace(/z/g, 's');
+  // Tamil/Indian r/l interchange (e.g., choran vs chozhan vs cholan)
+  s = s.replace(/r/g, 'l');
   return s.trim();
 }
 
