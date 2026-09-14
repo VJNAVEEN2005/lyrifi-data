@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
+import { MoviesView } from './components/MoviesView';
 import { SearchView } from './components/SearchView';
 import { SongDetail } from './components/SongDetail';
 import { MovieDetail } from './components/MovieDetail';
@@ -66,14 +67,32 @@ export function App() {
   // Compute live Movie Albums matching actual songs by Movie Name and Year
   const dynamicMovieAlbums = useMemo<MovieAlbum[]>(() => {
     const movieMap = new Map<string, MovieAlbum>();
+    const DISALLOWED_LABELS = new Set([
+      'tamil song',
+      'tamil single',
+      'sony music south',
+      'think music india',
+      'saregama tamil',
+      'aditya music',
+      'lahari music',
+      't-series tamil',
+      'universal music group',
+    ]);
+
     allAvailableSongs.forEach((s) => {
-      const movieName = s.movie?.trim();
-      if (!movieName) return;
-      const key = `${movieName.toLowerCase()}_${s.year || 2024}`;
+      const rawMovie = s.movie?.trim();
+      if (!rawMovie) return;
+      const lowerName = rawMovie.toLowerCase();
+      if (DISALLOWED_LABELS.has(lowerName)) return;
+
+      // Canonicalize common title capitalizations (e.g. LEO vs Leo)
+      const canonicalTitle = lowerName === 'leo' ? 'Leo' : rawMovie;
+      const key = `${canonicalTitle.toLowerCase()}_${s.year || 2024}`;
+
       if (!movieMap.has(key)) {
         movieMap.set(key, {
-          id: movieName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          title: movieName,
+          id: canonicalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          title: canonicalTitle,
           year: s.year || 2024,
           posterUrl: s.coverUrl,
           trackCount: 1,
@@ -82,13 +101,13 @@ export function App() {
         const item = movieMap.get(key)!;
         item.trackCount += 1;
         // Prefer higher quality non-default artwork if available
-        if (!item.posterUrl && s.coverUrl) {
+        if ((!item.posterUrl || item.posterUrl.includes('default-cover')) && s.coverUrl && !s.coverUrl.includes('default-cover')) {
           item.posterUrl = s.coverUrl;
         }
       }
     });
-    // Sort movies with most tracks first, or latest year
-    return Array.from(movieMap.values()).sort((a, b) => b.trackCount - a.trackCount || b.year - a.year);
+    // Sort strictly by latest released year first, then by track count
+    return Array.from(movieMap.values()).sort((a, b) => (b.year || 0) - (a.year || 0) || b.trackCount - a.trackCount);
   }, [allAvailableSongs]);
 
   // Compute live Artists & Composers matching actual songs (deduplicated by canonical artist slug)
@@ -261,6 +280,12 @@ export function App() {
     const path = window.location.pathname;
     if (path.startsWith('/search')) {
       return 'search';
+    }
+    if (path === '/movies' || path.startsWith('/movies/')) {
+      return 'movies';
+    }
+    if (path === '/artists' || path.startsWith('/artists/')) {
+      return 'artists';
     }
     return 'home';
   });
@@ -634,6 +659,16 @@ export function App() {
         return;
       }
 
+      if (path === '/movies' || path.startsWith('/movies')) {
+        setSelectedSong(null);
+        setSelectedMovie(null);
+        setSelectedArtist(null);
+        setActiveTab('movies');
+        setSearchQuery('');
+        setBackendResults(null);
+        return;
+      }
+
       if (path.startsWith('/secret-admin') || path.startsWith('/admin')) {
         setSelectedSong(null);
         setSelectedMovie(null);
@@ -660,10 +695,21 @@ export function App() {
   // Handle tab switching
   const handleTabChange = (tab: 'home' | 'movies' | 'artists' | 'search') => {
     setActiveTab(tab);
+    setSelectedSong(null);
+    setSelectedMovie(null);
+    setSelectedArtist(null);
+    setIsAdminRoute(false);
+    setSearchQuery('');
+    setBackendResults(null);
+
     if (tab === 'home') {
       handleGoHome();
-    } else if (tab === 'movies' || tab === 'artists') {
-      setSelectedSong(null);
+    } else if (tab === 'movies') {
+      if (window.location.pathname !== '/movies') {
+        window.history.pushState({ tab: 'movies' }, '', '/movies');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (tab === 'artists') {
       if (window.location.pathname !== '/') {
         window.history.pushState({}, '', '/');
       }
@@ -894,6 +940,14 @@ export function App() {
             candidateMovies={candidateMovies}
             onClearCandidates={() => setCandidateMovies([])}
           />
+        ) : activeTab === 'movies' ? (
+          /* DEDICATED MOVIES TAB (LATEST RELEASED ORDER) */
+          <MoviesView
+            movies={dynamicMovieAlbums}
+            onSelectMovie={handleSelectMovie}
+            onSelectSong={handleSelectSong}
+            allSongs={allAvailableSongs}
+          />
         ) : (
           <div>
             <HomeView
@@ -903,6 +957,7 @@ export function App() {
               onSelectSong={handleSelectSong}
               onSelectMovie={handleSelectMovie}
               onSelectArtist={handleSelectArtist}
+              onTabChange={handleTabChange}
             />
           </div>
         )}

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Play, Sparkles, TrendingUp, ChevronRight, Music2, Eye, Disc3, Mic2 } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Play, Sparkles, TrendingUp, ChevronRight, Music2, Eye, Disc3, Mic2, Film } from 'lucide-react';
 import { Song, MovieAlbum, Artist } from '../data';
 
 interface HomeViewProps {
@@ -9,6 +9,7 @@ interface HomeViewProps {
   onSelectSong: (song: Song) => void;
   onSelectMovie?: (movie: MovieAlbum) => void;
   onSelectArtist?: (artist: Artist) => void;
+  onTabChange?: (tab: 'home' | 'movies' | 'artists' | 'search') => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -18,25 +19,74 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectSong,
   onSelectMovie,
   onSelectArtist,
+  onTabChange,
 }) => {
-  const displaySongs = songs.slice(0, 20);
-  const displayMovies = movies.slice(0, 20);
-  const displayArtists = artists.slice(0, 20);
+  // Show new songs: ordered by latest year (2026, 2025, 2024...) and strictly ONE song per movie!
+  const displaySongs = useMemo(() => {
+    const sorted = [...songs].sort((a, b) => {
+      const yearDiff = (b.year || 0) - (a.year || 0);
+      if (yearDiff !== 0) return yearDiff;
+      return (b.views || 0) - (a.views || 0);
+    });
+
+    const seenMovies = new Set<string>();
+    const oneSongPerMovie: Song[] = [];
+
+    for (const song of sorted) {
+      const movieKey = (song.movie || '').toLowerCase().trim();
+      // For independent singles, treat them individually so singles don't collide
+      const dedupeKey = (!movieKey || movieKey === 'tamil song' || movieKey === 'tamil single')
+        ? `single_${song.id}`
+        : movieKey;
+
+      if (!seenMovies.has(dedupeKey)) {
+        seenMovies.add(dedupeKey);
+        oneSongPerMovie.push(song);
+      }
+
+      if (oneSongPerMovie.length >= 24) break;
+    }
+
+    return oneSongPerMovie;
+  }, [songs]);
+
+  // Show latest movies: sorted strictly by latest release year descending
+  const displayMovies = useMemo(() => {
+    const valid = movies.filter((m) => {
+      const t = (m.title || '').toLowerCase().trim();
+      return t !== 'tamil song' && t !== 'tamil single';
+    });
+    return [...valid]
+      .sort((a, b) => (b.year || 0) - (a.year || 0) || b.trackCount - a.trackCount)
+      .slice(0, 18);
+  }, [movies]);
+
+  const displayArtists = useMemo(() => artists.slice(0, 16), [artists]);
+
   return (
     <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12'>
       
-      {/* 1. POPULAR TAMIL SONGS (Apple Music / Genius Style Grid) */}
+      {/* 1. NEW RELEASES & TRENDING SONGS (One song per movie) */}
       <section className='space-y-6'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
+          <div>
             <h2 className='text-2xl font-black tracking-tight text-white flex items-center gap-2'>
-              Popular Songs <ChevronRight className='w-5 h-5 text-gray-500' />
+              New Releases &amp; Trending Songs <ChevronRight className='w-5 h-5 text-gray-500' />
             </h2>
+            <p className='text-xs text-gray-400 mt-0.5'>
+              Latest songs across Tamil cinema • <span className='text-rose-400 font-semibold'>1 song featured per movie</span>
+            </p>
           </div>
-          <div className='flex items-center gap-2 text-xs font-semibold'>
-            <span className='px-3 py-1 rounded-full bg-rose-500 text-white shadow-sm'>All</span>
-            <span className='px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 cursor-pointer transition'>Tamil</span>
-            <span className='px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 cursor-pointer transition'>Movies</span>
+          <div className='flex items-center gap-2 text-xs font-semibold self-start sm:self-auto'>
+            <span className='px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-sm'>
+              Latest Released
+            </span>
+            <span 
+              onClick={() => onTabChange?.('movies')} 
+              className='px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 cursor-pointer transition flex items-center gap-1'
+            >
+              <Film className='w-3 h-3' /> By Movie
+            </span>
           </div>
         </div>
 
@@ -84,13 +134,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 3. LATEST MOVIE ALBUMS (Posters Grid) */}
+      {/* 2. LATEST MOVIE ALBUMS (Posters Grid) */}
       <section id='movies' className='space-y-5 scroll-mt-20'>
         <div className='flex items-center justify-between'>
-          <h2 className='text-2xl font-black tracking-tight text-white flex items-center gap-2'>
-            Latest Movie Albums <ChevronRight className='w-5 h-5 text-gray-500' />
-          </h2>
-          <span className='text-xs text-gray-400 hover:text-white cursor-pointer transition'>View All</span>
+          <div>
+            <h2 className='text-2xl font-black tracking-tight text-white flex items-center gap-2'>
+              Latest Movie Albums <ChevronRight className='w-5 h-5 text-gray-500' />
+            </h2>
+            <p className='text-xs text-gray-400 mt-0.5'>
+              Soundtracks ordered by latest theatrical release
+            </p>
+          </div>
+          <button 
+            onClick={() => onTabChange?.('movies')} 
+            className='text-xs text-rose-400 hover:text-rose-300 font-semibold cursor-pointer transition flex items-center gap-1 hover:underline'
+          >
+            <span>View All Movies ({movies.length})</span>
+            <ChevronRight className='w-3.5 h-3.5' />
+          </button>
         </div>
 
         <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4'>
