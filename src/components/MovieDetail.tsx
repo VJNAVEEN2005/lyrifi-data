@@ -13,7 +13,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Song, MovieAlbum, slugifyMovieTitle, getMovieUrl } from '../data';
-import { fetchMovieAlbumDetails, MovieAlbumDetails } from '../services/api';
+import { fetchMovieAlbumDetails, fetchClientAppleMusicArtwork, MovieAlbumDetails } from '../services/api';
 
 interface MovieDetailProps {
   movie: MovieAlbum;
@@ -34,6 +34,8 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [backendAlbum, setBackendAlbum] = useState<MovieAlbumDetails | null>(null);
+  const [clientArtwork, setClientArtwork] = useState<string | null>(null);
+  const autoSearchAttempted = React.useRef<boolean>(false);
 
   const albumSlug = useMemo(() => slugifyMovieTitle(movie.title), [movie.title]);
 
@@ -50,6 +52,21 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
       isMounted = false;
     };
   }, [movie.year, albumSlug]);
+
+  // Fetch official high-res Apple Music artwork directly in browser (fast & reliable)
+  useEffect(() => {
+    let isMounted = true;
+    if (!movie.posterUrl || movie.posterUrl.includes('default-cover')) {
+      fetchClientAppleMusicArtwork(movie.title, movie.year).then((art) => {
+        if (isMounted && art) {
+          setClientArtwork(art);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [movie.title, movie.year, movie.posterUrl]);
 
   // Merge local songs with backend album songs (deduplicating by id / slug)
   const albumSongs = useMemo<Song[]>(() => {
@@ -79,6 +96,30 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
     });
     return Array.from(list);
   }, [albumSongs]);
+
+  const resolvedPoster = useMemo(() => {
+    if (clientArtwork && !clientArtwork.includes('default-cover')) return clientArtwork;
+    if (backendAlbum?.posterUrl && !backendAlbum.posterUrl.includes('default-cover')) return backendAlbum.posterUrl;
+    if (movie.posterUrl && !movie.posterUrl.includes('default-cover')) return movie.posterUrl;
+    const songWithCover = albumSongs.find((s) => s.coverUrl && !s.coverUrl.includes('default-cover'));
+    if (songWithCover?.coverUrl) return songWithCover.coverUrl;
+    if (backendAlbum?.backdropUrl && !backendAlbum.backdropUrl.includes('default-cover')) return backendAlbum.backdropUrl;
+    return albumSongs[0]?.coverUrl || movie.posterUrl || '/default-cover.svg';
+  }, [clientArtwork, backendAlbum, movie.posterUrl, albumSongs]);
+
+  // Auto-trigger deep search once if album has 0 local tracks and is not searching
+  useEffect(() => {
+    if (
+      albumSongs.length === 0 &&
+      !backendAlbum &&
+      !isDeepSearching &&
+      !autoSearchAttempted.current &&
+      onDeepSearch
+    ) {
+      autoSearchAttempted.current = true;
+      handleTriggerDeepSearch();
+    }
+  }, [albumSongs.length, backendAlbum, isDeepSearching, onDeepSearch]);
 
   const handleCopyLink = () => {
     const fullUrl = window.location.origin + getMovieUrl(movie);
@@ -141,13 +182,16 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
         <div className='relative rounded-3xl bg-gradient-to-b from-white/[0.07] to-white/[0.02] border border-white/10 shadow-2xl p-6 sm:p-10 overflow-hidden'>
           <div className='flex flex-col md:flex-row items-center md:items-start gap-8'>
             {/* Movie Poster */}
-            <div className='relative w-48 sm:w-56 md:w-64 aspect-[3/4] flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl border border-white/20 group'>
+            <div className='relative w-48 sm:w-56 md:w-64 aspect-[3/4] flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl border border-white/20 group bg-white/5'>
               <img
-                src={movie.posterUrl || albumSongs[0]?.coverUrl || '/default-cover.svg'}
+                src={resolvedPoster}
                 alt={movie.title}
                 className='w-full h-full object-cover group-hover:scale-105 transition duration-500'
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/default-cover.svg';
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.endsWith('/default-cover.svg')) {
+                    target.src = '/default-cover.svg';
+                  }
                 }}
               />
               <div className='absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60' />
@@ -249,17 +293,31 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
 
           {albumSongs.length === 0 ? (
             <div className='text-center py-16 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4'>
-              <Disc3 className='w-12 h-12 text-gray-500 mx-auto animate-pulse' />
-              <p className='text-gray-400 text-sm'>No tracks found in local catalog for &quot;{movie.title}&quot;.</p>
-              {onDeepSearch && (
-                <button
-                  onClick={handleTriggerDeepSearch}
-                  disabled={isDeepSearching}
-                  className='px-5 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold transition inline-flex items-center gap-2'
-                >
-                  <Sparkles className='w-4 h-4' />
-                  <span>Deep Search Album Tracks Online</span>
-                </button>
+              {isDeepSearching ? (
+                <div className='py-8 space-y-3'>
+                  <div className='inline-flex items-center justify-center p-3 rounded-2xl bg-pink-500/10 border border-pink-500/20 animate-pulse'>
+                    <Sparkles className='w-8 h-8 text-pink-400 animate-spin' />
+                  </div>
+                  <h3 className='text-base font-bold text-white'>Searching & Verifying Album Tracks</h3>
+                  <p className='text-xs text-gray-400 max-w-sm mx-auto'>
+                    Retrieving official tracklist and verified Tamil lyrics for &quot;{movie.title}&quot;...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Disc3 className='w-12 h-12 text-gray-500 mx-auto animate-pulse' />
+                  <p className='text-gray-400 text-sm'>No tracks found in local catalog for &quot;{movie.title}&quot;.</p>
+                  {onDeepSearch && (
+                    <button
+                      onClick={handleTriggerDeepSearch}
+                      disabled={isDeepSearching}
+                      className='px-5 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold transition inline-flex items-center gap-2'
+                    >
+                      <Sparkles className='w-4 h-4' />
+                      <span>Deep Search Album Tracks Online</span>
+                    </button>
+                  )}
+                </>
               )}
             </div>
           ) : (

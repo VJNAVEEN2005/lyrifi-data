@@ -181,6 +181,14 @@ const knownPortraits: Record<string, string> = {
   'spb-charan': '/artists/s-p-b-charan.jpg',
 };
 
+const toSlug = (str: string) =>
+  (str || '')
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
 const app = new Hono();
 
 // Enable CORS for frontend client
@@ -1274,12 +1282,25 @@ app.post('/api/scrape-on-demand', async (c) => {
         const html = await searchResp.text();
         const rawCandidates = parseMovieCandidatesFromSearchHtml(html, query);
 
-        // If a specific year was requested, check if exactly one candidate matches that year
+        // If a specific year was requested, check if candidates match that year
         let effectiveCandidates = rawCandidates;
         if (requestedYear && rawCandidates.length > 1) {
           const yearMatched = rawCandidates.filter((cand) => cand.year === requestedYear);
-          if (yearMatched.length === 1) {
+          if (yearMatched.length >= 1) {
             effectiveCandidates = yearMatched;
+          }
+        }
+
+        // If multiple candidates still remain, check for exact slug or exact title match
+        if (effectiveCandidates.length > 1) {
+          const exactMatched = effectiveCandidates.filter(
+            (cand) =>
+              cand.slug === qLower ||
+              cand.title.toLowerCase().trim() === qLower ||
+              cand.slug === toSlug(query)
+          );
+          if (exactMatched.length === 1) {
+            effectiveCandidates = exactMatched;
           }
         }
 

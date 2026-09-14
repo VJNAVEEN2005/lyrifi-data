@@ -328,6 +328,26 @@ export function App() {
       if (response && response.success) {
         setIsDeepSearching(false);
         if (response.type === 'movie-selection' && response.movies && response.movies.length > 0) {
+          // If the user requested a specific movie or we're on a movie page, check for an exact match first
+          const qLower = query.toLowerCase().trim();
+          const qSlug = slugifyMovieTitle(query);
+          const exactCandidate = response.movies.find((m) => {
+            const mTitleLower = m.title.toLowerCase().trim();
+            const mSlug = slugifyMovieTitle(m.title);
+            const yearMatch = !year || m.year === year;
+            return (mTitleLower === qLower || mSlug === qSlug) && yearMatch;
+          });
+
+          if (exactCandidate) {
+            handleDeepSearch({
+              query: exactCandidate.title,
+              type: 'movie',
+              targetMovieUrl: exactCandidate.movieUrl,
+              year: exactCandidate.year,
+            });
+            return;
+          }
+
           // Multiple matching candidate movies found!
           setCandidateMovies(response.movies);
           setBackendResults((prev) => ({
@@ -619,6 +639,11 @@ export function App() {
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
+    // If movie already has songs provided, never trigger deep search!
+    if (movie.songs && movie.songs.length > 0) {
+      return;
+    }
+
     // Check if album tracks exist in catalog. If not, auto-trigger deep scrape with targetMovieUrl & year!
     const albumSlug = slugifyMovieTitle(movie.title);
     const hasLocalTracks = allAvailableSongs.some((s) => {
@@ -713,14 +738,6 @@ export function App() {
             }}
             onGoHome={handleGoHome}
           />
-        ) : isDeepSearching ? (
-          <div className='min-h-[70vh] flex items-center justify-center'>
-            <LogoLoader message={deepSearchMessage} />
-          </div>
-        ) : isLoadingSong ? (
-          <div className='min-h-[70vh] flex items-center justify-center'>
-            <LogoLoader message='Fetching authentic verified lyrics...' />
-          </div>
         ) : selectedSong ? (
           <SongDetail
             song={selectedSong}
@@ -751,6 +768,14 @@ export function App() {
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
           />
+        ) : isDeepSearching ? (
+          <div className='min-h-[70vh] flex items-center justify-center'>
+            <LogoLoader message={deepSearchMessage} />
+          </div>
+        ) : isLoadingSong ? (
+          <div className='min-h-[70vh] flex items-center justify-center'>
+            <LogoLoader message='Fetching authentic verified lyrics...' />
+          </div>
         ) : activeTab === 'search' || searchQuery.trim().length > 0 ? (
           /* DEDICATED SEARCH PAGE VIEW */
           <SearchView
