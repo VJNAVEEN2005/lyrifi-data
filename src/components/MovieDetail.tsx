@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Song, MovieAlbum, slugifyMovieTitle, getMovieUrl } from '../data';
 import { fetchMovieAlbumDetails, fetchClientAppleMusicArtwork, MovieAlbumDetails } from '../services/api';
+import { SEOHead } from './SEOHead';
 
 interface MovieDetailProps {
   movie: MovieAlbum;
@@ -181,8 +182,43 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
     }
   };
 
+  const seoTitle = `${movie.title} (${movie.year || 2024}) Movie Songs Lyrics & Tracklist | Lyrifi`;
+  const seoDescription = `Explore all song lyrics from the Tamil movie ${movie.title} (${movie.year || 2024}). Composed by ${composer}. Authentic தமிழ் and Tanglish lyrics, tracklist and audio details on Lyrifi.`;
+  const seoKeywords = `${movie.title} songs lyrics, ${movie.title} movie songs, ${movie.title} lyrics, ${movie.title} tamil songs, ${composer} ${movie.title}, tamil movie lyrics ${movie.year || 2024}`;
+  const seoCanonical = `https://lyrifi-data.vercel.app${getMovieUrl(movie)}`;
+  const seoImage = resolvedPoster || movie.posterUrl || 'https://lyrifi-data.vercel.app/default-cover.svg';
+
+  const movieSchema = useMemo(() => ({
+    '@context': 'https://schema.org',
+    '@type': 'MusicAlbum',
+    name: movie.title,
+    url: seoCanonical,
+    image: seoImage,
+    datePublished: String(movie.year || 2024),
+    byArtist: composer && composer !== 'Various Artists' ? {
+      '@type': 'Person',
+      name: composer,
+    } : undefined,
+    numTracks: albumSongs.length,
+    track: albumSongs.map((s, idx) => ({
+      '@type': 'MusicRecording',
+      position: idx + 1,
+      name: s.title,
+      url: `https://lyrifi-data.vercel.app/song/${s.slug || s.id}`,
+    })),
+  }), [movie, seoCanonical, seoImage, composer, albumSongs]);
+
   return (
     <div className='relative min-h-screen text-white overflow-hidden bg-[#07080b] pb-28 animate-fadeIn'>
+      <SEOHead
+        title={seoTitle}
+        description={seoDescription}
+        keywords={seoKeywords}
+        canonicalUrl={seoCanonical}
+        ogImage={seoImage}
+        ogType='music.album'
+        schema={movieSchema}
+      />
       {/* Dynamic Background Ambient Glows */}
       <div 
         className='absolute top-0 left-1/4 w-[600px] h-[500px] rounded-full blur-[140px] pointer-events-none opacity-20'

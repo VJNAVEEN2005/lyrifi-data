@@ -31,6 +31,7 @@ import {
 } from '../data';
 import { SongAccuracyModal } from './SongAccuracyModal';
 import { fetchClientAppleMusicArtwork } from '../services/api';
+import { SEOHead } from './SEOHead';
 
 interface SongDetailProps {
   song: Song;
@@ -227,8 +228,47 @@ export const SongDetail: React.FC<SongDetailProps> = ({
     window.open('https://api.whatsapp.com/send?text=' + text, '_blank');
   };
 
+  const seoTitle = `${song.title} Song Lyrics - ${song.movie} | தமிழ் & Tanglish | Lyrifi`;
+  const seoDescription = `Read complete ${song.title} lyrics from ${song.movie} (${song.year || 2024}). Composed by ${song.composer}, sung by ${song.singers?.join(', ') || 'Various Artists'}. Authentic தமிழ் and Tanglish with synchronized Apple Music line glow.`;
+  const seoKeywords = `${song.title} song lyrics, ${song.title} lyrics, ${song.title} ${song.movie} lyrics, ${song.title} tamil lyrics, ${song.movie} songs lyrics, ${song.composer} songs, tamil song lyrics 2026`;
+  const seoCanonical = `https://lyrifi-data.vercel.app/song/${song.slug || song.id}`;
+  const seoImage = resolvedCover || song.coverUrl;
+
+  const songSchema = useMemo(() => ({
+    '@context': 'https://schema.org',
+    '@type': 'MusicRecording',
+    name: song.title,
+    url: seoCanonical,
+    image: seoImage,
+    datePublished: String(song.year || 2024),
+    inAlbum: song.movie && song.movie !== 'Tamil Song' ? {
+      '@type': 'MusicAlbum',
+      name: song.movie,
+    } : undefined,
+    byArtist: song.singers?.map((s) => ({ '@type': 'Person', name: s })) || [],
+    recordingOf: {
+      '@type': 'MusicComposition',
+      name: song.title,
+      composer: song.composer && song.composer !== 'Music Director' ? [{ '@type': 'Person', name: song.composer }] : undefined,
+      lyricist: song.lyricist && song.lyricist !== 'Lyricist' ? [{ '@type': 'Person', name: song.lyricist }] : undefined,
+      lyrics: (song.lyricsTamil?.length > 0 || song.lyricsTanglish?.length > 0) ? {
+        '@type': 'MusicLyrics',
+        text: (song.lyricsTamil?.length > 0 ? song.lyricsTamil : song.lyricsTanglish).slice(0, 30).join('\n'),
+      } : undefined,
+    },
+  }), [song, seoCanonical, seoImage]);
+
   return (
     <div className='relative min-h-screen text-white overflow-hidden bg-[#07080b] pb-32'>
+      <SEOHead
+        title={seoTitle}
+        description={seoDescription}
+        keywords={seoKeywords}
+        canonicalUrl={seoCanonical}
+        ogImage={seoImage}
+        ogType='music.song'
+        schema={songSchema}
+      />
       
       {/* 
         ========================================================================

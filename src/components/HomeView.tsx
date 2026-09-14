@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Play, Sparkles, TrendingUp, ChevronRight, Music2, Eye, Disc3, Mic2, Film } from 'lucide-react';
 import { Song, MovieAlbum, Artist } from '../data';
+import { SEOHead } from './SEOHead';
 
 interface HomeViewProps {
   songs: Song[];
@@ -63,8 +64,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const displayArtists = useMemo(() => artists.slice(0, 16), [artists]);
 
+  const homeSchema = useMemo(() => ({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Lyrifi',
+    alternateName: 'Lyrifi Tamil Lyrics',
+    url: 'https://lyrifi-data.vercel.app/',
+    description: 'Find authentic Tamil & Tanglish song lyrics with synchronized Apple Music line glow across 20,000+ songs and 4,600+ movie albums.',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: 'https://lyrifi-data.vercel.app/search?q={search_term_string}',
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  }), []);
+
   return (
     <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12'>
+      <SEOHead
+        title='Lyrifi - Tamil Songs Lyrics, Movie Albums & Artists'
+        description='Explore 20,000+ authentic Tamil and Tanglish song lyrics, 4,600+ movie tracklists, latest 2026 releases and famous artists with synchronized Apple Music line glow.'
+        keywords='tamil song lyrics, tamil lyrics 2026, latest tamil songs, tamil movie songs lyrics, tanglish lyrics, lyrifi'
+        canonicalUrl='https://lyrifi-data.vercel.app/'
+        ogImage='https://lyrifi-data.vercel.app/default-cover.svg'
+        schema={homeSchema}
+      />
       
       {/* 1. NEW RELEASES & TRENDING SONGS (One song per movie) */}
       <section className='space-y-6'>

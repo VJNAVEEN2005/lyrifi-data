@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Song, MovieAlbum, Artist, getArtistUrl, slugifyArtistName, normalizeArtistSlug, slugifyMovieTitle, getArtistPhoto } from '../data';
 import { fetchArtistDetails, ArtistDetails } from '../services/api';
+import { SEOHead } from './SEOHead';
 
 interface ArtistDetailProps {
   artist: Artist;
@@ -163,8 +164,38 @@ export const ArtistDetail: React.FC<ArtistDetailProps> = ({
 
   const role = backendArtist?.role || artist.role || 'Music Director & Artist';
 
+  const seoTitle = `${artist.name} Songs Lyrics, Albums & Tracklist | Lyrifi`;
+  const seoDescription = `Explore all hit songs, compositions, and lyrics by ${artist.name} (${role}). Browse complete tracklists with authentic தமிழ் & Tanglish lyrics on Lyrifi.`;
+  const seoKeywords = `${artist.name} songs lyrics, ${artist.name} tamil songs, ${artist.name} hits, ${artist.name} movie songs, ${artist.name} lyrics`;
+  const seoCanonical = `https://lyrifi-data.vercel.app${getArtistUrl(artist)}`;
+  const seoImage = getArtistPhoto(artist.name) || 'https://lyrifi-data.vercel.app/default-cover.svg';
+
+  const artistSchema = useMemo(() => ({
+    '@context': 'https://schema.org',
+    '@type': 'MusicGroup',
+    name: artist.name,
+    url: seoCanonical,
+    image: seoImage,
+    description: `${artist.name} is a renowned ${role} in Tamil cinema.`,
+    track: allArtistSongs.slice(0, 30).map((s, idx) => ({
+      '@type': 'MusicRecording',
+      position: idx + 1,
+      name: s.title,
+      url: `https://lyrifi-data.vercel.app/song/${s.slug || s.id}`,
+    })),
+  }), [artist, seoCanonical, seoImage, role, allArtistSongs]);
+
   return (
     <div className='relative min-h-screen text-white pb-32 overflow-x-hidden'>
+      <SEOHead
+        title={seoTitle}
+        description={seoDescription}
+        keywords={seoKeywords}
+        canonicalUrl={seoCanonical}
+        ogImage={seoImage}
+        ogType='profile'
+        schema={artistSchema}
+      />
       {/* Background Ambient Glow */}
       <div className='fixed inset-0 pointer-events-none z-0'>
         <div
