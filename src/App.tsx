@@ -25,6 +25,7 @@ import {
   recordSongView, 
   triggerDeepScrape, 
   searchCatalogFromBackend, 
+  fetchClientAppleMusicArtwork,
   BackendSearchResults 
 } from './services/api';
 import { Heart, Sparkles } from 'lucide-react';
@@ -397,19 +398,63 @@ export function App() {
 
         if (type === 'movie' && response.songs && response.songs.length > 0) {
           setCandidateMovies([]);
-          // Add newly scraped songs to extra songs state
-          setExtraSongs((prev) => [...response.songs!, ...prev]);
           const movieTitle = response.movieTitle || query.trim();
           const firstSong = response.songs[0];
           const movieYear = response.year || year || firstSong.year || 2024;
-          handleSelectMovie({
-            id: slugifyMovieTitle(movieTitle),
-            title: movieTitle,
+          const movieSlug = slugifyMovieTitle(movieTitle);
+
+          // Retrieve verified Apple Music artwork
+          let movieArtwork = await fetchClientAppleMusicArtwork(movieTitle, movieYear);
+          if (!movieArtwork || movieArtwork.includes('default-cover')) {
+            movieArtwork =
+              (selectedMovie?.posterUrl && !selectedMovie.posterUrl.includes('default-cover'))
+                ? selectedMovie.posterUrl
+                : (firstSong.coverUrl && !firstSong.coverUrl.includes('default-cover'))
+                ? firstSong.coverUrl
+                : '';
+          }
+
+          // Ensure every track receives high-resolution Apple Music artwork instead of /default-cover.svg
+          const enrichedSongs = response.songs.map((s) => ({
+            ...s,
+            movie: movieTitle,
             year: movieYear,
-            posterUrl: firstSong.coverUrl,
-            trackCount: response.songs.length,
-            songs: response.songs,
-          });
+            coverUrl:
+              s.coverUrl && !s.coverUrl.includes('default-cover')
+                ? s.coverUrl
+                : movieArtwork || '/default-cover.svg',
+            backdropUrl:
+              s.backdropUrl && !s.backdropUrl.includes('default-cover')
+                ? s.backdropUrl
+                : movieArtwork || '/default-cover.svg',
+          }));
+
+          setExtraSongs((prev) => [...enrichedSongs, ...prev]);
+
+          const chosenPoster =
+            movieArtwork ||
+            (firstSong.coverUrl && !firstSong.coverUrl.includes('default-cover')
+              ? firstSong.coverUrl
+              : selectedMovie?.posterUrl || '/default-cover.svg');
+
+          if (chosenPoster && !chosenPoster.includes('default-cover')) {
+            try {
+              localStorage.setItem(`lyrifi_poster_${movieSlug}`, chosenPoster);
+              localStorage.setItem(`lyrifi_apple_art_${movieTitle.toLowerCase().trim()}`, chosenPoster);
+            } catch {}
+          }
+
+          handleSelectMovie(
+            {
+              id: movieSlug,
+              title: movieTitle,
+              year: movieYear,
+              posterUrl: chosenPoster,
+              trackCount: enrichedSongs.length,
+              songs: enrichedSongs,
+            },
+            true // preventScroll = true (never scroll back up while user is reading!)
+          );
         } else if (response.song) {
           setCandidateMovies([]);
           // Single song scraped
@@ -663,16 +708,19 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSelectMovie = (movie: MovieAlbum) => {
+  const handleSelectMovie = (movie: MovieAlbum, preventScroll: boolean = false) => {
     setIsAdminRoute(false);
     setSelectedSong(null);
     setSelectedArtist(null);
     setSelectedMovie(movie);
     const targetPath = getMovieUrl(movie);
-    if (window.location.pathname !== targetPath) {
+    const isDifferentPath = window.location.pathname !== targetPath;
+    if (isDifferentPath) {
       window.history.pushState({ type: 'movie', movie }, '', targetPath);
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (isDifferentPath && !preventScroll) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
     // If movie already has songs provided, never trigger deep search!
     if (movie.songs && movie.songs.length > 0) {
