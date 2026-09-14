@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Film, Users, Music, ChevronRight, X, Sparkles } from 'lucide-react';
 import { Song, MovieAlbum, Artist } from '../data';
 import { DeepSearchModal } from './DeepSearchModal';
+import { searchMasterCatalog, CatalogSong, CatalogAlbum } from '../services/catalogService';
 
 interface NavbarProps {
   activeTab: 'home' | 'movies' | 'artists' | 'search';
@@ -48,6 +49,26 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 21k Catalog search state for navbar dropdown
+  const [catalogMatches, setCatalogMatches] = useState<{ songs: CatalogSong[]; albums: CatalogAlbum[] }>({
+    songs: [],
+    albums: [],
+  });
+
+  useEffect(() => {
+    const trimmedInput = inputValue.trim();
+    if (trimmedInput.length < 2) {
+      setCatalogMatches({ songs: [], albums: [] });
+      return;
+    }
+    const timer = setTimeout(() => {
+      searchMasterCatalog(trimmedInput, 6).then((res) => {
+        setCatalogMatches(res);
+      });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [inputValue]);
+
   // Compute live fast recommendations (matching songs, movies, artists)
   const trimmed = inputValue.trim().toLowerCase();
   const recommendations = useMemo(() => {
@@ -74,10 +95,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     return { songs: matchedSongs, movies: matchedMovies, artists: matchedArtists };
   }, [trimmed, songs, movies, artists]);
 
+  const unseenCatalogSongs = useMemo(() => {
+    const existingTitles = new Set(recommendations.songs.map((s) => s.title.toLowerCase().trim()));
+    return catalogMatches.songs.filter((cs) => !existingTitles.has(cs.title.toLowerCase().trim()));
+  }, [recommendations.songs, catalogMatches.songs]);
+
+  const unseenCatalogAlbums = useMemo(() => {
+    const existingTitles = new Set(recommendations.movies.map((m) => m.title.toLowerCase().trim()));
+    return catalogMatches.albums.filter((ca) => !existingTitles.has(ca.title.toLowerCase().trim()));
+  }, [recommendations.movies, catalogMatches.albums]);
+
   const hasRecommendations =
     recommendations.songs.length > 0 ||
     recommendations.movies.length > 0 ||
-    recommendations.artists.length > 0;
+    recommendations.artists.length > 0 ||
+    unseenCatalogSongs.length > 0 ||
+    unseenCatalogAlbums.length > 0;
 
   const handleTriggerSearch = (q: string) => {
     const query = q.trim();
@@ -307,6 +340,98 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </div>
                           </div>
                           <ChevronRight className='w-4 h-4 text-gray-500 shrink-0' />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 21k Catalog Songs */}
+                  {unseenCatalogSongs.length > 0 && (
+                    <div className='space-y-0.5 pt-1 border-t border-white/5'>
+                      <div className='px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1'>
+                        <Sparkles className='w-3 h-3 text-amber-400' /> All 21k Catalog Songs
+                      </div>
+                      {unseenCatalogSongs.slice(0, 3).map((cSong) => (
+                        <div
+                          key={cSong.slug}
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setInputValue(cSong.title);
+                            const songObj: Song = {
+                              id: cSong.slug.replace(/-song-lyrics$/i, ''),
+                              slug: cSong.slug,
+                              title: cSong.title,
+                              movie: 'Tamil Song',
+                              year: 2024,
+                              composer: 'Music Director',
+                              singers: ['Various Artists'],
+                              lyricist: 'Tamil Lyricist',
+                              coverUrl: '',
+                              backdropUrl: '',
+                              primaryGlowColor: '#ec4899',
+                              secondaryGlowColor: '#f43f5e',
+                              duration: '3:45',
+                              lyricsTamil: [],
+                              lyricsTanglish: [],
+                            };
+                            onSelectSong(songObj);
+                          }}
+                          className='flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition group'
+                        >
+                          <div className='w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-400'>
+                            <Music className='w-3.5 h-3.5' />
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-sm font-bold text-white group-hover:text-amber-400 transition truncate'>
+                              {cSong.title}
+                            </div>
+                            <div className='text-xs text-gray-400 truncate'>
+                              Tamil Cinema Archive • Instant Lyrics
+                            </div>
+                          </div>
+                          <span className='text-[10px] text-amber-400 font-medium px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20'>
+                            Lyrics
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 4.6k Catalog Movie Albums */}
+                  {unseenCatalogAlbums.length > 0 && (
+                    <div className='space-y-0.5 pt-1 border-t border-white/5'>
+                      <div className='px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1'>
+                        <Film className='w-3 h-3 text-amber-400' /> All 4.6k Movie Albums
+                      </div>
+                      {unseenCatalogAlbums.slice(0, 2).map((cAlbum) => (
+                        <div
+                          key={cAlbum.slug}
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setInputValue(cAlbum.title);
+                            if (onDeepSearch) {
+                              onDeepSearch({
+                                query: cAlbum.title,
+                                type: 'movie',
+                              });
+                            } else {
+                              handleTriggerSearch(cAlbum.title);
+                            }
+                          }}
+                          className='flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition group'
+                        >
+                          <div className='w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-400'>
+                            <Film className='w-3.5 h-3.5' />
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-sm font-bold text-white group-hover:text-amber-400 transition truncate'>
+                              {cAlbum.title}
+                            </div>
+                            <div className='text-xs text-gray-400 truncate'>
+                              Movie Album Archive • Load Songs
+                            </div>
+                          </div>
+                          <ChevronRight className='w-4 h-4 text-amber-400 shrink-0' />
                         </div>
                       ))}
                     </div>

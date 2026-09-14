@@ -14,6 +14,7 @@ import { Song, MovieAlbum, Artist, normalizeArtistSlug } from '../data';
 import { BackendSearchResults } from '../services/api';
 import { calculateFuzzyScore } from '../services/fuzzySearch';
 import { DeepSearchModal } from './DeepSearchModal';
+import { searchMasterCatalog, CatalogSong, CatalogAlbum } from '../services/catalogService';
 
 interface SearchViewProps {
   searchQuery: string;
@@ -67,6 +68,43 @@ export const SearchView: React.FC<SearchViewProps> = ({
     setVisibleSongs(20);
     setVisibleMovies(20);
     setVisibleArtists(20);
+  }, [searchQuery]);
+
+  // Master Catalog (21k songs & 4.6k albums) search state
+  const [catalogMatches, setCatalogMatches] = useState<{ songs: CatalogSong[]; albums: CatalogAlbum[] }>({
+    songs: [],
+    albums: [],
+  });
+  const [committedCatalogMatches, setCommittedCatalogMatches] = useState<{ songs: CatalogSong[]; albums: CatalogAlbum[] }>({
+    songs: [],
+    albums: [],
+  });
+
+  // Query 21k catalog while typing in search box (debounced)
+  useEffect(() => {
+    const trimmedInput = localInput.trim();
+    if (trimmedInput.length < 2) {
+      setCatalogMatches({ songs: [], albums: [] });
+      return;
+    }
+    const timer = setTimeout(() => {
+      searchMasterCatalog(trimmedInput, 10).then((res) => {
+        setCatalogMatches(res);
+      });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [localInput]);
+
+  // Query 21k catalog for committed search page
+  useEffect(() => {
+    const qClean = searchQuery.trim();
+    if (qClean.length >= 2) {
+      searchMasterCatalog(qClean, 40).then((res) => {
+        setCommittedCatalogMatches(res);
+      });
+    } else {
+      setCommittedCatalogMatches({ songs: [], albums: [] });
+    }
   }, [searchQuery]);
 
   // Close recommendations dropdown on outside click
@@ -135,10 +173,23 @@ export const SearchView: React.FC<SearchViewProps> = ({
     return { songs: matchedS, movies: matchedM, artists: matchedA };
   }, [trimmed, songs, movies, artists]);
 
+  // Exclude any songs or movies already in recommendations
+  const unseenCatalogSongs = useMemo(() => {
+    const existingTitles = new Set(recommendations.songs.map((s) => s.title.toLowerCase().trim()));
+    return catalogMatches.songs.filter((cs) => !existingTitles.has(cs.title.toLowerCase().trim()));
+  }, [recommendations.songs, catalogMatches.songs]);
+
+  const unseenCatalogAlbums = useMemo(() => {
+    const existingTitles = new Set(recommendations.movies.map((m) => m.title.toLowerCase().trim()));
+    return catalogMatches.albums.filter((ca) => !existingTitles.has(ca.title.toLowerCase().trim()));
+  }, [recommendations.movies, catalogMatches.albums]);
+
   const hasRecommendations =
     recommendations.songs.length > 0 ||
     recommendations.movies.length > 0 ||
-    recommendations.artists.length > 0;
+    recommendations.artists.length > 0 ||
+    unseenCatalogSongs.length > 0 ||
+    unseenCatalogAlbums.length > 0;
 
   // Local fallback results if backendResults is not yet populated
   const q = searchQuery.toLowerCase().trim();
@@ -233,6 +284,17 @@ export const SearchView: React.FC<SearchViewProps> = ({
     });
     return Array.from(map.values());
   }, [backendResults, localMatchedArtists]);
+
+  // Final 21k Catalog matches excluding items already in matchedSongs and matchedMovies
+  const finalCatalogSongs = useMemo(() => {
+    const existingTitles = new Set(matchedSongs.map((s) => s.title.toLowerCase().trim()));
+    return committedCatalogMatches.songs.filter((cs) => !existingTitles.has(cs.title.toLowerCase().trim()));
+  }, [matchedSongs, committedCatalogMatches.songs]);
+
+  const finalCatalogAlbums = useMemo(() => {
+    const existingTitles = new Set(matchedMovies.map((m) => m.title.toLowerCase().trim()));
+    return committedCatalogMatches.albums.filter((ca) => !existingTitles.has(ca.title.toLowerCase().trim()));
+  }, [matchedMovies, committedCatalogMatches.albums]);
 
   // Available Years Filter Pills
   const availableYears = useMemo(() => {
@@ -438,6 +500,95 @@ export const SearchView: React.FC<SearchViewProps> = ({
                             </div>
                           </div>
                           <ChevronRight className='w-4 h-4 text-gray-500 shrink-0' />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 21,000+ Catalog Song Matches */}
+                  {unseenCatalogSongs.length > 0 && (
+                    <div className='space-y-0.5 pt-1 border-t border-white/5'>
+                      <div className='px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1'>
+                        <Sparkles className='w-3 h-3 text-amber-400' /> All 21k Catalog Songs
+                      </div>
+                      {unseenCatalogSongs.slice(0, 4).map((cSong) => (
+                        <div
+                          key={cSong.slug}
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setLocalInput(cSong.title);
+                            const songObj: Song = {
+                              id: cSong.slug.replace(/-song-lyrics$/i, ''),
+                              slug: cSong.slug,
+                              title: cSong.title,
+                              movie: 'Tamil Song',
+                              year: 2024,
+                              composer: 'Music Director',
+                              singers: ['Various Artists'],
+                              lyricist: 'Tamil Lyricist',
+                              coverUrl: '',
+                              backdropUrl: '',
+                              primaryGlowColor: '#ec4899',
+                              secondaryGlowColor: '#f43f5e',
+                              duration: '3:45',
+                              lyricsTamil: [],
+                              lyricsTanglish: [],
+                            };
+                            onSelectSong(songObj);
+                          }}
+                          className='flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition group'
+                        >
+                          <div className='w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-400'>
+                            <Music className='w-4 h-4' />
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-sm font-bold text-white group-hover:text-amber-400 transition truncate'>
+                              {cSong.title}
+                            </div>
+                            <div className='text-xs text-gray-400 truncate'>
+                              Tamil Cinema Archive • Instant Lyrics
+                            </div>
+                          </div>
+                          <span className='text-[10px] text-amber-400 font-medium px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20'>
+                            Get Lyrics
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 4,600+ Catalog Movie Album Matches */}
+                  {unseenCatalogAlbums.length > 0 && (
+                    <div className='space-y-0.5 pt-1 border-t border-white/5'>
+                      <div className='px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1'>
+                        <Film className='w-3 h-3 text-amber-400' /> All 4.6k Movie Albums
+                      </div>
+                      {unseenCatalogAlbums.slice(0, 3).map((cAlbum) => (
+                        <div
+                          key={cAlbum.slug}
+                          onClick={() => {
+                            setShowDropdown(false);
+                            setLocalInput(cAlbum.title);
+                            onDeepSearch({
+                              query: cAlbum.title,
+                              type: 'movie',
+                              targetMovieUrl: `https://www.tamil2lyrics.com/movie/${cAlbum.slug}/`,
+                            });
+                          }}
+                          className='flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition group'
+                        >
+                          <div className='w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-400'>
+                            <Film className='w-4 h-4' />
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-sm font-bold text-white group-hover:text-amber-400 transition truncate'>
+                              {cAlbum.title}
+                            </div>
+                            <div className='text-xs text-gray-400 truncate'>
+                              Movie Album Archive • Load All Songs
+                            </div>
+                          </div>
+                          <ChevronRight className='w-4 h-4 text-amber-400 shrink-0' />
                         </div>
                       ))}
                     </div>
@@ -788,6 +939,126 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   </button>
                 </div>
               )}
+            </section>
+          )}
+
+          {/* SECTION D: TAMIL CINEMA ARCHIVE (21,000+ SONGS CATALOG) */}
+          {(activeFilter === 'all' || activeFilter === 'songs') && finalCatalogSongs.length > 0 && (
+            <section className='space-y-4 pt-4'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <h2 className='text-xl font-bold text-white flex items-center gap-2'>
+                    <Sparkles className='w-5 h-5 text-amber-400' />
+                    Tamil Cinema Archive ({finalCatalogSongs.length} Songs in 21k Catalog)
+                  </h2>
+                  <p className='text-xs text-gray-400 mt-0.5'>
+                    Select any song to instantly fetch full verified lyrics and official artwork from the web archive.
+                  </p>
+                </div>
+              </div>
+
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4'>
+                {finalCatalogSongs.slice(0, 20).map((cSong, idx) => (
+                  <div
+                    key={cSong.slug}
+                    onClick={() => {
+                      const songObj: Song = {
+                        id: cSong.slug.replace(/-song-lyrics$/i, ''),
+                        slug: cSong.slug,
+                        title: cSong.title,
+                        movie: 'Tamil Song',
+                        year: 2024,
+                        composer: 'Music Director',
+                        singers: ['Various Artists'],
+                        lyricist: 'Tamil Lyricist',
+                        coverUrl: '',
+                        backdropUrl: '',
+                        primaryGlowColor: '#ec4899',
+                        secondaryGlowColor: '#f43f5e',
+                        duration: '3:45',
+                        lyricsTamil: [],
+                        lyricsTanglish: [],
+                      };
+                      onSelectSong(songObj);
+                    }}
+                    className='group flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/[0.04] to-rose-500/[0.04] hover:from-amber-500/[0.1] hover:to-rose-500/[0.1] border border-amber-500/15 hover:border-amber-500/40 transition duration-200 cursor-pointer shadow-lg'
+                  >
+                    <div className='flex items-center gap-3.5 min-w-0'>
+                      <span className='w-5 text-center font-bold text-xs text-amber-400 font-mono'>
+                        {idx + 1}
+                      </span>
+                      <div className='w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-400 group-hover:scale-105 transition'>
+                        <Music className='w-6 h-6' />
+                      </div>
+                      <div className='min-w-0'>
+                        <div className='font-bold text-sm sm:text-base text-white group-hover:text-amber-300 transition truncate'>
+                          {cSong.title}
+                        </div>
+                        <div className='text-xs text-amber-300/70 truncate mt-0.5'>
+                          Tamil Cinema Archive • Instant Lyrics
+                        </div>
+                      </div>
+                    </div>
+                    <button className='px-3.5 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500 text-amber-200 hover:text-white text-xs font-bold transition shadow-sm shrink-0 border border-amber-500/30'>
+                      Get Lyrics
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* SECTION E: TAMIL CINEMA ARCHIVE ALBUMS (4,600+ MOVIES) */}
+          {(activeFilter === 'all' || activeFilter === 'movies') && finalCatalogAlbums.length > 0 && (
+            <section className='space-y-4 pt-4'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <h2 className='text-xl font-bold text-white flex items-center gap-2'>
+                    <Film className='w-5 h-5 text-amber-400' />
+                    Tamil Movie Archive ({finalCatalogAlbums.length} Albums in Catalog)
+                  </h2>
+                  <p className='text-xs text-gray-400 mt-0.5'>
+                    Explore full soundtrack albums from 7 decades of Tamil cinema.
+                  </p>
+                </div>
+              </div>
+
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4'>
+                {finalCatalogAlbums.slice(0, 20).map((cAlbum, idx) => (
+                  <div
+                    key={cAlbum.slug}
+                    onClick={() => {
+                      onDeepSearch({
+                        query: cAlbum.title,
+                        type: 'movie',
+                        targetMovieUrl: `https://www.tamil2lyrics.com/movie/${cAlbum.slug}/`,
+                      });
+                    }}
+                    className='group flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/[0.04] to-rose-500/[0.04] hover:from-amber-500/[0.1] hover:to-rose-500/[0.1] border border-amber-500/15 hover:border-amber-500/40 transition duration-200 cursor-pointer shadow-lg'
+                  >
+                    <div className='flex items-center gap-3.5 min-w-0'>
+                      <span className='w-5 text-center font-bold text-xs text-amber-400 font-mono'>
+                        {idx + 1}
+                      </span>
+                      <div className='w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amber-400 group-hover:scale-105 transition'>
+                        <Film className='w-6 h-6' />
+                      </div>
+                      <div className='min-w-0'>
+                        <div className='font-bold text-sm sm:text-base text-white group-hover:text-amber-300 transition truncate uppercase'>
+                          {cAlbum.title}
+                        </div>
+                        <div className='text-xs text-amber-300/70 truncate mt-0.5'>
+                          Movie Album Archive • Click to load tracks
+                        </div>
+                      </div>
+                    </div>
+                    <button className='px-3.5 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500 text-amber-200 hover:text-white text-xs font-bold transition shadow-sm shrink-0 border border-amber-500/30 flex items-center gap-1'>
+                      <span>Load Album</span>
+                      <ChevronRight className='w-3.5 h-3.5' />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 

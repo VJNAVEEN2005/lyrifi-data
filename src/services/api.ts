@@ -52,10 +52,27 @@ export async function fetchSongsList(query = '', page = 1, limit = 50): Promise<
  */
 export async function fetchSongLyrics(slugOrId: string): Promise<Song | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/songs/${slugOrId}`);
+    let res = await fetch(`${API_BASE_URL}/api/songs/${slugOrId}`);
+    if (!res.ok && !slugOrId.endsWith('-song-lyrics')) {
+      res = await fetch(`${API_BASE_URL}/api/songs/${slugOrId}-song-lyrics`);
+    }
     if (!res.ok) return null;
     const json: SongDetailApiResponse = await res.json();
-    return json.data;
+    if (!json.success || !json.data) return null;
+
+    const song = json.data;
+    // Auto-resolve Apple Music artwork if missing
+    if (!song.coverUrl || song.coverUrl.includes('default-cover')) {
+      const artQuery = song.movie && song.movie !== 'Tamil Song'
+        ? `${song.title} ${song.movie}`
+        : song.title;
+      const art = await fetchClientAppleMusicArtwork(artQuery, song.year);
+      if (art) {
+        song.coverUrl = art;
+        song.backdropUrl = art;
+      }
+    }
+    return song;
   } catch {
     return null; // Fallback to bundled cache
   }
