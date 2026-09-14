@@ -8,6 +8,7 @@ import { MovieDetail } from './components/MovieDetail';
 import { ArtistDetail } from './components/ArtistDetail';
 import { AdminPortal } from './components/AdminPortal';
 import { LogoLoader } from './components/LogoLoader';
+import { LegalPages, LegalPageType } from './components/LegalPages';
 import {
   Song,
   MovieAlbum,
@@ -267,6 +268,14 @@ export function App() {
         role: 'Music Director & Artist',
         imageUrl: getArtistPhoto(artistSlug),
       };
+    }
+    return null;
+  });
+
+  const [selectedLegalPage, setSelectedLegalPage] = useState<LegalPageType | null>(() => {
+    const path = window.location.pathname.replace(/^\//, '').toLowerCase();
+    if (['privacy', 'terms', 'about', 'contact', 'dmca'].includes(path)) {
+      return path as LegalPageType;
     }
     return null;
   });
@@ -673,11 +682,23 @@ export function App() {
         setSelectedSong(null);
         setSelectedMovie(null);
         setSelectedArtist(null);
+        setSelectedLegalPage(null);
         setIsAdminRoute(true);
         return;
       }
 
+      const cleanLegalPath = path.replace(/^\//, '').toLowerCase();
+      if (['privacy', 'terms', 'about', 'contact', 'dmca'].includes(cleanLegalPath)) {
+        setSelectedSong(null);
+        setSelectedMovie(null);
+        setSelectedArtist(null);
+        setIsAdminRoute(false);
+        setSelectedLegalPage(cleanLegalPath as LegalPageType);
+        return;
+      }
+
       setIsAdminRoute(false);
+      setSelectedLegalPage(null);
 
       // If returning to home or any other path
       setSelectedSong(null);
@@ -724,6 +745,7 @@ export function App() {
 
   const handleSelectSong = async (song: Song) => {
     setIsAdminRoute(false);
+    setSelectedLegalPage(null);
     // Record live analytics view in backend
     recordSongView(song.id);
 
@@ -739,6 +761,7 @@ export function App() {
       setSelectedSong(song);
       setSelectedMovie(null);
       setSelectedArtist(null);
+      setSelectedLegalPage(null);
       setCurrentPlayingSong(song);
       return;
     }
@@ -748,6 +771,7 @@ export function App() {
     setSelectedSong(song);
     setSelectedMovie(null);
     setSelectedArtist(null);
+    setSelectedLegalPage(null);
     setCurrentPlayingSong(song);
     const fullSong = await fetchSongLyrics(song.slug || song.id);
     if (fullSong) {
@@ -759,6 +783,7 @@ export function App() {
 
   const handleGoHome = () => {
     setIsAdminRoute(false);
+    setSelectedLegalPage(null);
     setSelectedSong(null);
     setSelectedMovie(null);
     setSelectedArtist(null);
@@ -771,8 +796,22 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleOpenLegalPage = (page: LegalPageType) => {
+    setIsAdminRoute(false);
+    setSelectedSong(null);
+    setSelectedMovie(null);
+    setSelectedArtist(null);
+    setSelectedLegalPage(page);
+    const targetPath = `/${page}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ page }, '', targetPath);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSelectMovie = (movie: MovieAlbum, preventScroll: boolean = false) => {
     setIsAdminRoute(false);
+    setSelectedLegalPage(null);
     setSelectedSong(null);
     setSelectedArtist(null);
     setSelectedMovie(movie);
@@ -810,6 +849,7 @@ export function App() {
 
   const handleSelectArtist = (artist: Artist) => {
     setIsAdminRoute(false);
+    setSelectedLegalPage(null);
     const verifiedPhoto = artist.imageUrl && !artist.imageUrl.includes('-art.jpg') && !artist.imageUrl.includes('mzstatic')
       ? artist.imageUrl
       : getArtistPhoto(artist.name || artist.id);
@@ -914,6 +954,12 @@ export function App() {
             onDeepSearch={handleDeepSearch}
             isDeepSearching={isDeepSearching}
           />
+        ) : selectedLegalPage ? (
+          /* DEDICATED LEGAL & POLICY PAGES (PRIVACY, TERMS, ABOUT, CONTACT, DMCA) */
+          <LegalPages
+            page={selectedLegalPage}
+            onBack={handleGoHome}
+          />
         ) : isDeepSearching ? (
           <div className='min-h-[70vh] flex items-center justify-center'>
             <LogoLoader message={deepSearchMessage} />
@@ -963,21 +1009,54 @@ export function App() {
         )}
       </main>
 
-      {/* Footer (Genius / Clean style with legal & sitemap for Google crawl) */}
+      {/* Footer (Genius / Clean style with legal & sitemap for Google crawl & AdSense approval) */}
       <footer className='border-t border-white/10 bg-[#06070a] py-8 text-xs text-gray-400'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4'>
-          <div className='flex items-center gap-2'>
-            <div className='font-black text-white text-base tracking-tight'>Lyrifi</div>
+          <div className='flex items-center gap-2 cursor-pointer' onClick={handleGoHome}>
+            <div className='font-black text-white text-base tracking-tight hover:text-pink-400 transition'>Lyrifi</div>
             <span className='text-gray-400'>•</span>
             <span>Music feels better with words.</span>
           </div>
 
           <div className='flex flex-wrap items-center gap-5 text-gray-400'>
-            <a href='#about' className='hover:text-white transition'>About</a>
-            <a href='#contact' className='hover:text-white transition'>Contact</a>
-            <a href='#dmca' className='hover:text-white transition'>DMCA / Copyright</a>
-            <a href='#privacy' className='hover:text-white transition'>Privacy Policy</a>
-            <a href='#sitemap' className='hover:text-white transition'>Sitemap</a>
+            <button
+              onClick={() => handleOpenLegalPage('about')}
+              className='hover:text-white transition cursor-pointer'
+            >
+              About
+            </button>
+            <button
+              onClick={() => handleOpenLegalPage('privacy')}
+              className='hover:text-white transition cursor-pointer text-pink-400 font-semibold'
+            >
+              Privacy Policy
+            </button>
+            <button
+              onClick={() => handleOpenLegalPage('terms')}
+              className='hover:text-white transition cursor-pointer'
+            >
+              Terms of Service
+            </button>
+            <button
+              onClick={() => handleOpenLegalPage('contact')}
+              className='hover:text-white transition cursor-pointer'
+            >
+              Contact
+            </button>
+            <button
+              onClick={() => handleOpenLegalPage('dmca')}
+              className='hover:text-white transition cursor-pointer'
+            >
+              DMCA / Copyright
+            </button>
+            <a
+              href='/sitemap.xml'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='hover:text-white transition'
+            >
+              Sitemap
+            </a>
           </div>
 
           <div className='flex items-center gap-1.5 text-gray-400'>
