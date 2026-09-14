@@ -31,7 +31,23 @@ import { Heart, Sparkles } from 'lucide-react';
 import { useAnimatedFavicon } from './hooks/useAnimatedFavicon';
 
 export function App() {
-  const [extraSongs, setExtraSongs] = useState<Song[]>([]);
+  const [extraSongs, setExtraSongs] = useState<Song[]>(() => {
+    try {
+      const saved = localStorage.getItem('lyrifi_extra_songs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persist extra scraped songs so they are NEVER lost on page refresh
+  useEffect(() => {
+    try {
+      if (extraSongs.length > 0) {
+        localStorage.setItem('lyrifi_extra_songs', JSON.stringify(extraSongs.slice(0, 500)));
+      }
+    } catch {}
+  }, [extraSongs]);
 
   // Combine verified catalog with dynamically added songs (no dummy/placeholder songs)
   const allAvailableSongs = useMemo(() => {
@@ -190,12 +206,31 @@ export function App() {
     if (movieMatch) {
       const year = parseInt(movieMatch[1], 10);
       const albumSlug = movieMatch[2].toLowerCase();
+
+      // Check dynamicMovieAlbums first
+      const existing = dynamicMovieAlbums.find(
+        (m) => slugifyMovieTitle(m.title) === albumSlug && (isNaN(year) || m.year === year)
+      ) || dynamicMovieAlbums.find((m) => slugifyMovieTitle(m.title) === albumSlug);
+
+      if (existing && existing.posterUrl && !existing.posterUrl.includes('default-cover')) {
+        return existing;
+      }
+
+      // Check persistent localStorage for poster
+      let cachedPoster = '';
+      try {
+        cachedPoster =
+          localStorage.getItem(`lyrifi_poster_${albumSlug}`) ||
+          localStorage.getItem(`lyrifi_apple_art_${albumSlug.replace(/-/g, ' ')}`) ||
+          '';
+      } catch {}
+
       return {
         id: albumSlug,
-        title: albumSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-        year,
-        posterUrl: '',
-        trackCount: 0,
+        title: existing?.title || albumSlug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        year: existing?.year || year,
+        posterUrl: existing?.posterUrl || cachedPoster || '',
+        trackCount: existing?.trackCount || 0,
       };
     }
     return null;

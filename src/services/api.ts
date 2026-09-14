@@ -92,10 +92,20 @@ export async function fetchClientAppleMusicArtwork(
   const targetYear = year ? String(year).trim() : '';
   if (!cleanTitle || cleanTitle === 'Tamil Single') return null;
 
-  const cacheKey = `${cleanTitle.toLowerCase()}_${targetYear}`;
+  const cleanLower = cleanTitle.toLowerCase();
+  const cacheKey = `${cleanLower}_${targetYear}`;
   if (clientArtworkCache.has(cacheKey)) {
     return clientArtworkCache.get(cacheKey)!;
   }
+
+  // Check persistent localStorage cache for instantaneous restore across refreshes
+  try {
+    const cached = localStorage.getItem(`lyrifi_apple_art_${cleanLower}`);
+    if (cached) {
+      clientArtworkCache.set(cacheKey, cached);
+      return cached;
+    }
+  } catch {}
 
   const queries = [
     `${cleanTitle} Tamil Soundtrack`,
@@ -113,6 +123,14 @@ export async function fetchClientAppleMusicArtwork(
         const data: any = await resp.json();
         if (data?.results?.length > 0) {
           const sorted = [...data.results].sort((a: any, b: any) => {
+            const aName = (a.collectionName || '').toLowerCase();
+            const bName = (b.collectionName || '').toLowerCase();
+            const aTitleMatch = aName.includes(cleanLower);
+            const bTitleMatch = bName.includes(cleanLower);
+
+            if (aTitleMatch && !bTitleMatch) return -1;
+            if (!aTitleMatch && bTitleMatch) return 1;
+
             const aYear = (a.releaseDate || '').slice(0, 4);
             const bYear = (b.releaseDate || '').slice(0, 4);
             const aYearMatch = targetYear && aYear === targetYear;
@@ -133,6 +151,9 @@ export async function fetchClientAppleMusicArtwork(
           if (top?.artworkUrl100) {
             const highRes = top.artworkUrl100.replace('100x100bb', '800x800bb');
             clientArtworkCache.set(cacheKey, highRes);
+            try {
+              localStorage.setItem(`lyrifi_apple_art_${cleanLower}`, highRes);
+            } catch {}
             return highRes;
           }
         }

@@ -34,7 +34,21 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
   const [backendAlbum, setBackendAlbum] = useState<MovieAlbumDetails | null>(null);
-  const [clientArtwork, setClientArtwork] = useState<string | null>(null);
+  const [clientArtwork, setClientArtwork] = useState<string | null>(() => {
+    if (movie.posterUrl && !movie.posterUrl.includes('default-cover')) {
+      return movie.posterUrl;
+    }
+    try {
+      const slug = slugifyMovieTitle(movie.title);
+      return (
+        localStorage.getItem(`lyrifi_poster_${slug}`) ||
+        localStorage.getItem(`lyrifi_apple_art_${movie.title.toLowerCase().trim()}`) ||
+        null
+      );
+    } catch {
+      return null;
+    }
+  });
   const autoSearchAttempted = React.useRef<boolean>(false);
 
   const albumSlug = useMemo(() => slugifyMovieTitle(movie.title), [movie.title]);
@@ -56,26 +70,40 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
   // Fetch official high-res Apple Music artwork directly in browser (fast & reliable)
   useEffect(() => {
     let isMounted = true;
-    if (!movie.posterUrl || movie.posterUrl.includes('default-cover')) {
+    const effectivePoster = clientArtwork || movie.posterUrl;
+    if (!effectivePoster || effectivePoster.includes('default-cover')) {
       fetchClientAppleMusicArtwork(movie.title, movie.year).then((art) => {
         if (isMounted && art) {
           setClientArtwork(art);
+          try {
+            localStorage.setItem(`lyrifi_poster_${albumSlug}`, art);
+            localStorage.setItem(`lyrifi_apple_art_${movie.title.toLowerCase().trim()}`, art);
+          } catch {}
         }
       });
     }
     return () => {
       isMounted = false;
     };
-  }, [movie.title, movie.year, movie.posterUrl]);
+  }, [movie.title, movie.year, movie.posterUrl, albumSlug]);
 
   // Merge local songs with backend album songs (deduplicating by id / slug)
   const albumSongs = useMemo<Song[]>(() => {
     const movieNameLower = movie.title.toLowerCase().trim();
-    const localMatches = allSongs.filter((s) => {
+    let localMatches = allSongs.filter((s) => {
       const sMovie = (s.movie || '').toLowerCase().trim();
       const sSlug = slugifyMovieTitle(s.movie);
       return (sMovie === movieNameLower || sSlug === albumSlug) && (!movie.year || s.year === movie.year);
     });
+
+    // Fallback: match by title or slug even if year differs
+    if (localMatches.length === 0) {
+      localMatches = allSongs.filter((s) => {
+        const sMovie = (s.movie || '').toLowerCase().trim();
+        const sSlug = slugifyMovieTitle(s.movie);
+        return sMovie === movieNameLower || sSlug === albumSlug;
+      });
+    }
 
     const songMap = new Map<string, Song>();
     // First populate local matches
@@ -99,13 +127,19 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
 
   const resolvedPoster = useMemo(() => {
     if (clientArtwork && !clientArtwork.includes('default-cover')) return clientArtwork;
-    if (backendAlbum?.posterUrl && !backendAlbum.posterUrl.includes('default-cover')) return backendAlbum.posterUrl;
     if (movie.posterUrl && !movie.posterUrl.includes('default-cover')) return movie.posterUrl;
+    if (backendAlbum?.posterUrl && !backendAlbum.posterUrl.includes('default-cover')) return backendAlbum.posterUrl;
     const songWithCover = albumSongs.find((s) => s.coverUrl && !s.coverUrl.includes('default-cover'));
     if (songWithCover?.coverUrl) return songWithCover.coverUrl;
     if (backendAlbum?.backdropUrl && !backendAlbum.backdropUrl.includes('default-cover')) return backendAlbum.backdropUrl;
+    try {
+      const cached =
+        localStorage.getItem(`lyrifi_poster_${albumSlug}`) ||
+        localStorage.getItem(`lyrifi_apple_art_${movie.title.toLowerCase().trim()}`);
+      if (cached && !cached.includes('default-cover')) return cached;
+    } catch {}
     return albumSongs[0]?.coverUrl || movie.posterUrl || '/default-cover.svg';
-  }, [clientArtwork, backendAlbum, movie.posterUrl, albumSongs]);
+  }, [clientArtwork, backendAlbum, movie.posterUrl, albumSongs, albumSlug, movie.title]);
 
   // Auto-trigger deep search once if album has 0 local tracks and is not searching
   useEffect(() => {
@@ -340,11 +374,16 @@ export const MovieDetail: React.FC<MovieDetailProps> = ({
                     {/* Artwork thumbnail */}
                     <div className='w-12 h-12 rounded-xl overflow-hidden bg-white/5 flex-shrink-0 border border-white/10 shadow-sm'>
                       <img
-                        src={song.coverUrl || '/default-cover.svg'}
+                        src={song.coverUrl || resolvedPoster || '/default-cover.svg'}
                         alt={song.title}
                         className='w-full h-full object-cover group-hover:scale-110 transition duration-300'
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/default-cover.svg';
+                          const target = e.target as HTMLImageElement;
+                          if (resolvedPoster && !resolvedPoster.includes('default-cover') && target.src !== resolvedPoster) {
+                            target.src = resolvedPoster;
+                          } else if (!target.src.endsWith('/default-cover.svg')) {
+                            target.src = '/default-cover.svg';
+                          }
                         }}
                       />
                     </div>
